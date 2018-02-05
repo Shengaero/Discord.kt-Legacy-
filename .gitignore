@@ -1,0 +1,33 @@
+### Intellij Files ###
+/.idea/
+/out/
+*.iml
+*.ipr
+*.iws
+
+### Eclipse Files ###
+/bin/
+**/.settings/
+.classpath
+.project
+
+### Netbeans Files ###
+/.nb-gradle/
+/target/
+*.nb-gradle-properties
+
+### Gradle Files ###
+/.gradle/
+/build/
+
+### Configuration And Testing Files ###
+/src/test/
+*.json
+
+### Image Files ###
+*.png
+*.jpg
+*.ico
+
+### Other Files ###
+/planning/
