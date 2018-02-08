@@ -15,14 +15,20 @@
  */
 package me.kgustave.dkt.entities.impl
 
-import me.kgustave.dkt.API
+import me.kgustave.dkt.entities.PrivateChannel
 import me.kgustave.dkt.entities.Snowflake
 import me.kgustave.dkt.entities.User
+import me.kgustave.dkt.exceptions.UnloadedPropertyException
+import me.kgustave.dkt.requests.RestPromise
+import me.kgustave.dkt.requests.Route
+import me.kgustave.dkt.requests.promises.PreCompletedPromise
+import me.kgustave.kson.KSONObject
+import me.kgustave.kson.kson
 
 /**
  * @author Kaidan Gustave
  */
-class UserImpl(override val id: Long, override val api: API) : User {
+class UserImpl(override val id: Long, override val api: APIImpl) : User {
     companion object {
         internal const val DEFAULT_AVY_EXT = "/embed/avatars/%s.png"
         internal const val AVY_EXT = "/avatars/%d/%s.png"
@@ -36,6 +42,8 @@ class UserImpl(override val id: Long, override val api: API) : User {
         )
     }
 
+    internal var internalPrivateChannel: PrivateChannel? = null
+
     override var name = ""
         internal set
     override var discriminator = -1
@@ -45,12 +53,27 @@ class UserImpl(override val id: Long, override val api: API) : User {
     override var avatarId: String? = null
         internal set
 
+    override val privateChannel: PrivateChannel
+        get() = internalPrivateChannel ?: throw UnloadedPropertyException("Private channel has not been opened yet!")
     override val avatarUrl: String
         get() = avatarId?.let { AVY_EXT.format(id, it) } ?: defaultAvatarUrl
     override val defaultAvatarId: String
         get() = DEFAULT_AVATAR_HASHES[discriminator % DEFAULT_AVATAR_HASHES.size]
     override val defaultAvatarUrl: String
         get() = DEFAULT_AVY_EXT.format(defaultAvatarId)
+
+    override fun openPrivateChannel(): RestPromise<PrivateChannel> {
+        // We already have this channel opened
+        internalPrivateChannel?.let { return PreCompletedPromise(api, it, null) }
+
+        val requestBody = kson { "recipient_id" to id.toString() }
+        return RestPromise.simple(api, Route.CreateDM.format(), body = requestBody) { res, req ->
+            when {
+                res.isOk -> req.succeed(api.entityBuilder.createPrivateChannel(res.obj as KSONObject, this@UserImpl))
+                res.isError -> req.error(res)
+            }
+        }
+    }
 
     override fun hashCode(): Int = id.hashCode()
 

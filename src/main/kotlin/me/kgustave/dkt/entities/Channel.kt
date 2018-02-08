@@ -15,8 +15,6 @@
  */
 package me.kgustave.dkt.entities
 
-import me.kgustave.dkt.util.checkCast
-
 /**
  * @since  1.0.0
  * @author Kaidan Gustave
@@ -39,34 +37,30 @@ interface Channel : Snowflake {
         get() = guild == null
 
     /**
-     * Converts this Channel to a [GuildChannel].
-     *
-     * This is under the assumption that this Channel is indeed
-     * an implementation of GuildChannel, and if it is not an
-     * [IllegalStateException] will be thrown as a result.
-     *
-     * @throws IllegalStateException If this Channel is not a [GuildChannel].
-     */
-    fun toGuildChannel(): GuildChannel = checkCast { "Instance of Channel is not a GuildChannel" }
-
-    /**
      * Constants defining the specific type of [Channel].
      *
      * @since  1.0.0
      * @author Kaidan Gustave
      */
-    enum class Type(val number: Int) {
+    enum class Type(val number: Int, val isGuild: Boolean = false) {
         /** Type constant corresponding to a [TextChannel]. */
-        TEXT(0),
-
-        /** Type constant corresponding to a [VoiceChannel]. */
-        VOICE(2),
-
-        /** Type constant corresponding to a [Category]. */
-        CATEGORY(4),
+        TEXT(0, true),
 
         /** Type constant corresponding to a [PrivateChannel]. */
-        PRIVATE(1);
+        PRIVATE(1),
+
+        /** Type constant corresponding to a [VoiceChannel]. */
+        VOICE(2, true),
+
+        // Unsupported, bots cannot use groups.
+        // If bots are allowed to use groups this will be implemented, otherwise
+        // it will be left commented out.
+        // GROUP(3, false)
+
+        /** Type constant corresponding to a [Category]. */
+        CATEGORY(4, true),
+
+        UNKNOWN(-1);
         companion object {
             fun typeOf(number: Int): Type? = values().firstOrNull { number == it.number }
         }
@@ -78,11 +72,8 @@ interface Channel : Snowflake {
  * @author Kaidan Gustave
  */
 interface GuildChannel : Channel {
-
     val name: String
 
     /** The [Guild] this Channel is from, never-null. */
     override val guild: Guild
-
-    fun getPermissionOverrides() {}
 }

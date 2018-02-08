@@ -21,7 +21,6 @@ import me.kgustave.dkt.entities.*
 import me.kgustave.dkt.entities.caching.impl.MemberCacheImpl
 import me.kgustave.dkt.entities.caching.impl.OrderedSnowflakeCache
 import me.kgustave.dkt.entities.caching.impl.SnowflakeCacheImpl
-import me.kgustave.dkt.exceptions.RateLimitedException
 import me.kgustave.dkt.exceptions.UnloadedPropertyException
 import me.kgustave.dkt.requests.RestPromise
 import me.kgustave.dkt.requests.Route
@@ -30,13 +29,15 @@ import java.util.Comparator.*
 /**
  * @author Kaidan Gustave
  */
-class GuildImpl
-internal constructor(override val id: Long, override val api: APIImpl, override var unavailable: Boolean = true): Guild {
+class GuildImpl(
+    override val id: Long,
+    override val api: APIImpl,
+    override var unavailable: Boolean = true
+): Guild {
     companion object {
         // 1: ID, 2: hash
-        private const val ICON_EXT = "/icons/%d/%s.png"
-        private const val SPLASH_EXT = "/splashes/%d/%s.png"
-
+        private const val ICON_CDN   = "${Discord.CDN_URL}/icons/%d/%s.png"
+        private const val SPLASH_CDN = "${Discord.CDN_URL}/splashes/%d/%s.png"
         private fun GuildImpl.checkUnavailable() {
             if(unavailable)
                 throw UnloadedPropertyException("Could not get property for unloaded Guild (ID: $id)")
@@ -52,6 +53,10 @@ internal constructor(override val id: Long, override val api: APIImpl, override 
     private lateinit var _defaultNotificationLevel: Guild.NotificationLevel
     private lateinit var _explicitContentFilter: Guild.ExplicitContentFilter
 
+    // Used purely for debugging if somehow an owner doesn't get set for a guild
+    internal val ownerIsInitialized: Boolean
+        get() = ::_owner.isInitialized
+
     override var name: String
         internal set(value) { _name = value }
         get() {
@@ -65,7 +70,7 @@ internal constructor(override val id: Long, override val api: APIImpl, override 
             return _owner
         }
     override var everyoneRole: Role
-        internal set(value) { _everyoneRole = (value as RoleImpl).also { it.isEveryoneRole = true } }
+        internal set(value) { _everyoneRole = value }
         get() {
             checkUnavailable()
             return _everyoneRole
@@ -137,23 +142,24 @@ internal constructor(override val id: Long, override val api: APIImpl, override 
             return field
         }
 
+    override val self: Member
+        get() = TODO("not implemented")
+    override val iconUrl: String? get() {
+        checkUnavailable()
+        return iconId?.let { ICON_CDN.format(id, it) }
+    }
+    override val splashUrl: String? get() {
+        checkUnavailable()
+        return splashId?.let { SPLASH_CDN.format(id, it) }
+    }
+
     override val categoryCache = OrderedSnowflakeCache(naturalOrder(), Category::name)
     override val textChannelCache = OrderedSnowflakeCache(naturalOrder(), TextChannel::name)
     override val voiceChannelCache = OrderedSnowflakeCache(naturalOrder(), VoiceChannel::name)
     override val roleCache = OrderedSnowflakeCache(reverseOrder(), Role::name)
-    override val emoteCache = SnowflakeCacheImpl(Emote::name)
+    override val emoteCache = SnowflakeCacheImpl(GuildEmote::name)
     override val memberCache = MemberCacheImpl()
 
-    override val iconUrl: String?
-        get() {
-            checkUnavailable()
-            return iconId?.let { "${Discord.CDN_URL}${ICON_EXT.format(id, it)}" }
-        }
-    override val splashUrl: String?
-        get() {
-            checkUnavailable()
-            return splashId?.let { "${Discord.CDN_URL}${SPLASH_EXT.format(id, it)}" }
-        }
     override val roles: List<Role>
         get() = roleCache.toList()
     override val emotes: List<Emote>
@@ -168,7 +174,7 @@ internal constructor(override val id: Long, override val api: APIImpl, override 
         get() = voiceChannelCache.toList()
 
     // Used for direct setup, usually after joining a guild
-    internal constructor(id: Long, api: APIImpl, block: GuildImpl.() -> Unit): this(id, api, unavailable = false) {
+    constructor(id: Long, api: APIImpl, block: GuildImpl.() -> Unit): this(id, api, false) {
         this.block()
     }
 
@@ -230,14 +236,11 @@ internal constructor(override val id: Long, override val api: APIImpl, override 
         // 204 -> Successfully left guild
         when {
             res.code == 204 -> req.succeed(Unit)
-            res.isRateLimit -> req.failure(RateLimitedException(req.route, res.retryAfter))
-            else -> {
-                req.failure(IllegalStateException("Discord responded with an unknown error: " +
-                                                    "${res.code} - ${res.message}"))
-            }
+            else -> req.error(res)
         }
     }
 
     override fun hashCode(): Int = id.hashCode()
     override fun equals(other: Any?): Boolean = other is Guild && Snowflake.equals(this, other)
+    override fun toString(): String = Snowflake.toString("Guild", this)
 }

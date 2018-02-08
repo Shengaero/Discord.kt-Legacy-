@@ -21,7 +21,9 @@ package me.kgustave.dkt.entities
  */
 interface Emote : Mentionable, Snowflake {
     val name: String
-    val guild: Guild
+    val guild: Guild?
     val isAnimated: Boolean
+    val isManaged: Boolean
     val imageUrl: String
+    val roles: List<Role>?
 }

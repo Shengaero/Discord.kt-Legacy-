@@ -1,5 +1,5 @@
 /*
- * Copyright 2018 Kaidan Gustave
+ * Copyright 2017 Kaidan Gustave
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -13,18 +13,12 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package me.kgustave.dkt.entities
+package me.kgustave.dkt.events.guild
+
+import me.kgustave.dkt.API
+import me.kgustave.dkt.entities.Guild
 
 /**
  * @author Kaidan Gustave
  */
-interface PrivateChannel : MessageChannel {
-    val recipient: User
-}
-
-/**
- * @author Kaidan Gustave
- */
-interface PrivateMessage : Message {
-    override val channel: PrivateChannel
-}
+class GuildAvailableEvent(override val api: API, override val responseNumber: Long, override val guild: Guild): GuildEvent

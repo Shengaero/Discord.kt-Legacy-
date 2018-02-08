@@ -1,5 +1,5 @@
 /*
- * Copyright 2018 Kaidan Gustave
+ * Copyright 2017 Kaidan Gustave
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -13,19 +13,29 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package me.kgustave.dkt.entities
+@file:Suppress("CanBePrimaryConstructorProperty")
+package me.kgustave.dkt.entities.impl
 
 import me.kgustave.dkt.API
+import me.kgustave.dkt.entities.GuildEmote
+import me.kgustave.dkt.entities.Role
 
 /**
- * @since  1.0.0
  * @author Kaidan Gustave
  */
-interface Member : PermissionHolder, Comparable<Member> {
-    val api: API
-    val user: User
-    val name: String
-    val username: String
-    val nickname: String?
-    val roles: List<Role>
+class GuildEmoteImpl(
+    guild: GuildImpl,
+    api: API,
+    id: Long,
+    name: String,
+    isAnimated: Boolean,
+    isManaged: Boolean
+): GuildEmote, AbstractEmoteImpl(api, id, name, isAnimated, isManaged) {
+    internal val internalRoles = ArrayList<Role>()
+
+    override var name: String = super.name
+
+    override val guild = guild
+    override val roles: List<Role>
+        get() = internalRoles
 }

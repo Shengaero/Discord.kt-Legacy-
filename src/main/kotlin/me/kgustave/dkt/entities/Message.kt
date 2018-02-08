@@ -15,15 +15,38 @@
  */
 package me.kgustave.dkt.entities
 
+import me.kgustave.dkt.API
 import me.kgustave.dkt.requests.RestPromise
+import me.kgustave.dkt.requests.promises.MessagePromise
 
 /**
  * @since  1.0.0
  * @author Kaidan Gustave
  */
 interface Message : Snowflake {
+    companion object {
+        /**
+         * The maximum number of text characters that
+         * can be sent in a single message.
+         */
+        const val MAX_TEXT_LENGTH = 2000
+
+        fun contentEmpty(text: CharSequence?): Boolean {
+            if(text == null || text.isEmpty())
+                return true
+
+            for(c in text) {
+                if(!c.isWhitespace()) {
+                    return false
+                }
+            }
+            return true
+        }
+    }
+
     val type: Type
     val channel: MessageChannel
+    val channelType: Channel.Type
     val content: String
     val renderedContent: String
     val author: User
@@ -33,36 +56,32 @@ interface Message : Snowflake {
     val mentionedEmotes: List<Emote>
     val mentionedUsers: List<User>
     val mentionedChannels: List<Channel>
+    val isWebhook: Boolean
 
-    val textChannel: TextChannel?
-        get() = channel as? TextChannel
-    val privateChannel: PrivateChannel?
-        get() = channel as? PrivateChannel
-
-    fun edit(text: String): RestPromise<Message>
-    fun edit(embed: Embed): RestPromise<Message>
-    fun edit(message: Message): RestPromise<Message>
+    fun edit(text: String): MessagePromise
+    fun edit(embed: Embed): MessagePromise
+    fun edit(message: Message): MessagePromise
 
     fun delete(): RestPromise<Message>
-
-    enum class Type {
-        TEXT, PRIVATE
-    }
 
     class Builder {
         // TODO Message.Builder
     }
 
-    class Attachment {
-        // TODO Message.Attachment
-    }
+    data class Attachment(
+        val api: API, val id: Long, val url: String?, val proxyUrl: String?,
+        val filename: String, val size: Int, val height: Int, val width: Int
+    )
 
-    companion object {
-        /**
-         * The maximum number of text characters that
-         * can be sent in a single message.
-         */
-        const val MAX_TEXT_LENGTH = 2000
+    enum class Type(val type: Int) {
+        DEFAULT(0),
+        CHANNEL_PINNED_ADD(6),
+        GUILD_MEMBER_JOIN(7),
+        UNKNOWN(-1);
+
+        companion object {
+            fun typeOf(type: Int): Message.Type = values().firstOrNull { it.type == type } ?: UNKNOWN
+        }
     }
 }
 
@@ -70,7 +89,7 @@ interface Message : Snowflake {
  * @author Kaidan Gustave
  */
 interface MessageChannel : Channel {
-    fun send(text: String): RestPromise<Message>
-    fun send(embed: Embed): RestPromise<Message>
-    fun send(message: Message): RestPromise<Message>
+    fun send(text: String): MessagePromise
+    fun send(embed: Embed): MessagePromise
+    fun send(message: Message): MessagePromise
 }

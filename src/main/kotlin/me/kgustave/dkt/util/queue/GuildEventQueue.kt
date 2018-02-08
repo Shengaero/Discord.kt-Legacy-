@@ -1,5 +1,5 @@
 /*
- * Copyright 2018 Kaidan Gustave
+ * Copyright 2017 Kaidan Gustave
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,18 +14,17 @@
  * limitations under the License.
  */
 @file:Suppress("MemberVisibilityCanPrivate", "MemberVisibilityCanBePrivate", "Unused")
-package me.kgustave.dkt.requests.resources
+package me.kgustave.dkt.util.queue
 
 import me.kgustave.dkt.entities.impl.APIImpl
+import me.kgustave.dkt.util.createLogger
 import me.kgustave.kson.KSONObject
-import org.slf4j.Logger
-import org.slf4j.LoggerFactory
 import java.util.*
 import kotlin.collections.HashMap
 import kotlin.collections.HashSet
 
 /**
- * A Guild ID, [EventQueue] collection for properly awaiting
+ * A Guild ID, [RawEventQueue] collection for properly awaiting
  * a [Guild][me.kgustave.dkt.entities.Guild]'s validation
  * before firing events related to it.
  *
@@ -39,7 +38,7 @@ import kotlin.collections.HashSet
  */
 class GuildEventQueue(private val api: APIImpl) {
     companion object {
-        private val LOG: Logger = LoggerFactory.getLogger(GuildEventQueue::class.java)
+        private val LOG = createLogger(GuildEventQueue::class)
     }
 
     private val registeredQueues = HashMap<Long, Queue<KSONObject>>()
@@ -51,7 +50,7 @@ class GuildEventQueue(private val api: APIImpl) {
         if(!isRegistered(guildId)) {
             LOG.debug("Queuing Guild with ID: $guildId")
             registered.add(guildId)
-            registeredQueues[guildId] = EventQueue()
+            registeredQueues[guildId] = RawEventQueue()
         }
     }
 

@@ -47,21 +47,29 @@ class GuildMembersChunkHandler(override val api: APIImpl): EventHandler(Type.GUI
 
         if(memberChunks.sumBy { it.size } >= expected) {
             LOG.debug("Finished Chunking for Guild ID: $guildId")
-            // TODO Add entity setup
-            expectedGuildMemberMap.remove(guildId)
+            api.entityBuilder.handleGuildMemberChunks(guildId, memberChunks)
             memberChunkCache.remove(guildId)
+            expectedGuildMemberMap.remove(guildId)
         }
     }
 
-    fun addExpectedGuildMembers(guildId: Long, expectedCount: Int) {
-        val expected = if(expectedGuildMemberMap.containsKey(guildId))
-            expectedGuildMemberMap[guildId]!! + expectedCount
-        else expectedCount
+    fun setExpectedGuildMembers(guildId: Long, expectedCount: Int) {
+        if(guildId in expectedGuildMemberMap) {
+            LOG.warn("Set the expected user count for a guild that was already mapped (ID: $guildId)")
+        }
 
-        expectedGuildMemberMap[guildId] = expected
+        if(guildId in memberChunkCache) {
+            LOG.warn("Set the expected member chunk for a guild that was already setup (ID: $guildId)")
+        }
 
-        if(!memberChunkCache.containsKey(guildId))
-            memberChunkCache[guildId] = LinkedList()
+        expectedGuildMemberMap[guildId] = expectedCount
+        memberChunkCache[guildId] = LinkedList()
+    }
+
+    fun addExpectedGuildMembers(guildId: Long, addition: Int) {
+        expectedGuildMemberMap[guildId]?.let { expected ->
+            expectedGuildMemberMap[guildId] = expected + addition
+        }
     }
 
     fun clear() {

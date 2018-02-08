@@ -56,6 +56,22 @@ interface Snowflake {
          *         two have equivalent [IDs][Snowflake.id].
          */
         fun equals(s1: Snowflake, s2: Snowflake): Boolean = s1 === s2 || s1.id == s2.id
+
+        /**
+         * Converts the provided [Snowflake] to a string using the provided
+         * [identifier], in the following format:
+         * ```
+         * <identifier>:<snowflake.id>
+         * ```
+         * This is commonly used when overriding the [toString][Any.toString]
+         * method of many Snowflake implementations.
+         *
+         * @param identifier The identifier.
+         * @param snowflake The [Snowflake].
+         *
+         * @return A formatted string.
+         */
+        fun toString(identifier: String, snowflake: Snowflake): String = "$identifier:${snowflake.id}"
     }
 
     /**

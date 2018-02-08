@@ -26,11 +26,15 @@ interface PermissionHolder {
     val guild: Guild
     val permissions: List<Permission>
 
+    fun canInteract(member: Member): Boolean
+    fun canInteract(role: Role): Boolean
+    fun canInteract(emote: Emote): Boolean
+
     fun hasPermission(vararg permissions: Permission): Boolean
     fun hasPermission(permissions: Collection<Permission>): Boolean
         = hasPermission(*permissions.toTypedArray())
 
-    fun hasPermission(channel: Channel, vararg permissions: Permission): Boolean
-    fun hasPermission(channel: Channel, permissions: Collection<Permission>): Boolean
+    fun hasPermission(channel: GuildChannel, vararg permissions: Permission): Boolean
+    fun hasPermission(channel: GuildChannel, permissions: Collection<Permission>): Boolean
         = hasPermission(channel, *permissions.toTypedArray())
 }

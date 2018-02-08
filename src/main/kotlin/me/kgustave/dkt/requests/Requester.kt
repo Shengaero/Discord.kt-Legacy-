@@ -27,6 +27,7 @@ import me.kgustave.dkt.util.createLogger
 import me.kgustave.dkt.util.method
 import me.kgustave.dkt.util.set
 import me.kgustave.dkt.util.request
+import okhttp3.MediaType
 import okhttp3.RequestBody
 import okhttp3.Response
 import java.net.SocketTimeoutException
@@ -39,6 +40,7 @@ class Requester constructor(internal val api: APIImpl) {
     companion object {
         val DEFAULT_BODY = RequestBody.create(null, byteArrayOf())!!
         val LOGGER = createLogger(Requester::class)
+        val MEDIA_TYPE_JSON = MediaType.parse("application/json; charset=utf-8")!!
 
         @JvmStatic val USER_AGENT = "DiscordBot (${Discord.KtInfo.GITHUB}, ${Discord.KtInfo.VERSION})"
     }

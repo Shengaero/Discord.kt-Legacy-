@@ -18,7 +18,6 @@ package me.kgustave.dkt.entities.impl
 import me.kgustave.dkt.API
 import me.kgustave.dkt.Permission
 import me.kgustave.dkt.entities.*
-import me.kgustave.dkt.requests.RestPromise
 import me.kgustave.dkt.util.unmodifiableList
 import java.util.Comparator
 
@@ -36,17 +35,16 @@ class MemberImpl(override val api: API, override val guild: Guild, override val 
         get() = user.name
     override val roles: List<Role>
         get() = unmodifiableList(internalRoles.sortedWith(Comparator.reverseOrder()))
-    override val permissions: List<Permission>
-        get() {
-            val dest = ArrayList<Permission>()
-            internalRoles.forEach {
-                it.permissions.forEach {
-                    if(it !in dest) // Not in destination
-                        dest += it
-                }
+    override val permissions: List<Permission> get() {
+        val dest = ArrayList<Permission>()
+        internalRoles.forEach {
+            it.permissions.forEach {
+                if(it !in dest) // Not in destination
+                    dest += it
             }
-            return dest
         }
+        return dest
+    }
 
     override fun canInteract(member: Member): Boolean {
         TODO("not implemented") //To change body of created functions use File | Settings | File Templates.
@@ -56,7 +54,7 @@ class MemberImpl(override val api: API, override val guild: Guild, override val 
         TODO("not implemented") //To change body of created functions use File | Settings | File Templates.
     }
 
-    override fun changeNickname(name: String): RestPromise<String> {
+    override fun canInteract(emote: Emote): Boolean {
         TODO("not implemented") //To change body of created functions use File | Settings | File Templates.
     }
 
@@ -64,7 +62,7 @@ class MemberImpl(override val api: API, override val guild: Guild, override val 
         TODO("not implemented") //To change body of created functions use File | Settings | File Templates.
     }
 
-    override fun hasPermission(channel: Channel, vararg permissions: Permission): Boolean {
+    override fun hasPermission(channel: GuildChannel, vararg permissions: Permission): Boolean {
         TODO("not implemented") //To change body of created functions use File | Settings | File Templates.
     }
 

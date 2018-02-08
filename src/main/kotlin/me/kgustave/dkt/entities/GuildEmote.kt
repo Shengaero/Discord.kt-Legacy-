@@ -1,5 +1,5 @@
 /*
- * Copyright 2018 Kaidan Gustave
+ * Copyright 2017 Kaidan Gustave
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -18,13 +18,7 @@ package me.kgustave.dkt.entities
 /**
  * @author Kaidan Gustave
  */
-interface PrivateChannel : MessageChannel {
-    val recipient: User
-}
-
-/**
- * @author Kaidan Gustave
- */
-interface PrivateMessage : Message {
-    override val channel: PrivateChannel
+interface GuildEmote : Emote {
+    override val guild: Guild
+    override val roles: List<Role>
 }

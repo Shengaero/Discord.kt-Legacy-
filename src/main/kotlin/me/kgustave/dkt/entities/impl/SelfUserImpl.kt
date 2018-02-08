@@ -15,9 +15,12 @@
  */
 package me.kgustave.dkt.entities.impl
 
+import me.kgustave.dkt.entities.PrivateChannel
 import me.kgustave.dkt.entities.SelfUser
 import me.kgustave.dkt.entities.Snowflake
 import me.kgustave.dkt.entities.User
+import me.kgustave.dkt.requests.RestPromise
+import me.kgustave.dkt.util.unsupported
 
 /**
  * @author Kaidan Gustave
@@ -28,7 +31,6 @@ class SelfUserImpl(
     override var name: String,
     override var discriminator: Int
 ): SelfUser {
-
     // Kotlincord does not and will never support client
     // accounts so this should always be true.
     override val isBot = true
@@ -40,6 +42,12 @@ class SelfUserImpl(
         get() = with(UserImpl) { DEFAULT_AVATAR_HASHES[discriminator % DEFAULT_AVATAR_HASHES.size] }
     override val defaultAvatarUrl: String
         get() = UserImpl.DEFAULT_AVY_EXT.format(defaultAvatarId)
+    override val privateChannel: PrivateChannel
+        get() = unsupported { "Cannot get a PrivateChannel with self!" }
+
+    override fun openPrivateChannel(): RestPromise<PrivateChannel> {
+        unsupported { "Cannot open a PrivateChannel with self!" }
+    }
 
     override fun hashCode(): Int = id.hashCode()
 

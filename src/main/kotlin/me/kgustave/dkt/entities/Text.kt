@@ -20,11 +20,8 @@ package me.kgustave.dkt.entities
  */
 interface TextMessage : Message {
     val guild: Guild
-
-    override val type: Message.Type
-        get() = Message.Type.TEXT
-
-    override val textChannel: TextChannel
+    override val member: Member
+    override val channel: TextChannel
 }
 
 /**

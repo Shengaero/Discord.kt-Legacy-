@@ -29,9 +29,8 @@ import me.kgustave.dkt.util.toStringArray
  * @since  1.0
  * @author Kaidan Gustave
  */
-sealed class Route
-constructor(val method: Method, val endpoint: String, vararg val majorParameters: String,
-            val rateLimit: RateLimit? = null) {
+sealed class Route(val method: Method, val endpoint: String, vararg val majorParameters: String,
+                   val rateLimit: RateLimit? = null) {
     companion object {
         // The base URL for all requests
         internal const val BASE_URL = "${Discord.API_URL}/v${Discord.KtInfo.REST_VERSION}"
@@ -190,6 +189,7 @@ constructor(val method: Method, val endpoint: String, vararg val majorParameters
     object GetSelfDMs : Route(GET, "/users/@me/channels")
     object ModifySelf : Route(PATCH, "/users/@me")
     object LeaveGuild : Route(DELETE, "/users/@me/guilds/{guild.id}", "guild.id")
+    object CreateDM : Route(POST, "/users/@me/channels")
 
 
 
@@ -204,6 +204,7 @@ constructor(val method: Method, val endpoint: String, vararg val majorParameters
 
     // Channel
     object CreateMessage : Route(POST, "/channels/{channel.id}/messages", "channel.id")
+    object EditMessage : Route(PATCH, "/channels/{channel.id}/messages/{message.id}", "channel.id")
 
     // Member
     object ModifyGuildMember : Route(PATCH, "/guilds/{guild.id}/members/{user.id}", "guild.id")

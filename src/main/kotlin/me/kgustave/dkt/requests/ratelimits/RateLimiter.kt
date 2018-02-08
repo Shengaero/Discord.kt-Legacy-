@@ -17,8 +17,8 @@
 package me.kgustave.dkt.requests.ratelimits
 
 import kotlinx.coroutines.experimental.*
-import me.kgustave.dkt.requests.RestRequest
 import me.kgustave.dkt.requests.Requester
+import me.kgustave.dkt.requests.RestRequest
 import me.kgustave.dkt.requests.RestResponse
 import me.kgustave.dkt.requests.Route
 import me.kgustave.dkt.util.currentTime
@@ -28,7 +28,10 @@ import okhttp3.Headers
 import okhttp3.Response
 import java.time.OffsetDateTime
 import java.time.format.DateTimeFormatter
-import java.util.concurrent.*
+import java.util.concurrent.RejectedExecutionException
+import java.util.concurrent.ScheduledThreadPoolExecutor
+import java.util.concurrent.ThreadFactory
+import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicInteger
 import kotlin.concurrent.thread
 import kotlin.coroutines.experimental.CoroutineContext
@@ -221,7 +224,9 @@ class RateLimiter(private val requester: Requester, poolSize: Int, global: Globa
             delay(bucket)
             val request = bucket.queue.peek() ?: break
             if(requester.execute(request, retried = false)) {
-                requester.execute(request, retried = true)
+                if(!requester.execute(request, retried = true)) {
+                    Requester.LOGGER.warn("Failed to execute request after retrying")
+                }
             }
             bucket.queue.poll()
         }

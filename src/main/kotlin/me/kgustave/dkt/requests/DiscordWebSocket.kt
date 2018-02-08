@@ -24,19 +24,19 @@ import me.kgustave.dkt.entities.impl.APIImpl
 import me.kgustave.dkt.entities.impl.PresenceImpl
 import me.kgustave.dkt.exceptions.DiscordConnectionException
 import me.kgustave.dkt.events.DisconnectEvent
+import me.kgustave.dkt.events.ReadyEvent
 import me.kgustave.dkt.events.ShutdownEvent
 import me.kgustave.dkt.handlers.shard.SessionManager
 import me.kgustave.dkt.handlers.event.EventHandler
 import me.kgustave.dkt.handlers.event.GuildMembersChunkHandler
-import me.kgustave.dkt.requests.resources.EventQueue
+import me.kgustave.dkt.util.queue.RawEventQueue
+import me.kgustave.dkt.util.createLogger
 import me.kgustave.dkt.util.currentTime
 import me.kgustave.dkt.util.snowflake
 import me.kgustave.kson.KSONArray
 import me.kgustave.kson.KSONException
 import me.kgustave.kson.KSONObject
 import me.kgustave.kson.kson
-import org.slf4j.Logger
-import org.slf4j.LoggerFactory
 import java.util.*
 import java.util.concurrent.RejectedExecutionException
 import java.util.concurrent.TimeUnit
@@ -53,11 +53,9 @@ import kotlin.math.min
 class DiscordWebSocket
 constructor(val api: APIImpl, private val sessionManager: SessionManager?): WebSocketAdapter(), WebSocketListener {
     companion object {
-        private val LOG: Logger = LoggerFactory.getLogger(DiscordWebSocket::class.java)
+        private val LOG = createLogger(DiscordWebSocket::class)
         const val IDENTIFY_DELAY = 5 // Seconds
     }
-
-    private val handlers: Map<EventHandler.Type, EventHandler> = EventHandler.newEventHandlerMap(api)
 
     @Volatile private lateinit var lifeContext: ThreadPoolDispatcher
     @Volatile private lateinit var life: Job
@@ -69,9 +67,9 @@ constructor(val api: APIImpl, private val sessionManager: SessionManager?): WebS
     @Volatile private var shutdown = false
 
     private val token = "Bot ${api.token}"
-    private val eventsToReplay = EventQueue()
+    private val eventsToReplay = RawEventQueue()
     private val rateLimitQueue = LinkedList<String>()
-    private val chunkSyncQueue = LinkedList<String>()
+    private val chunkQueue = LinkedList<String>()
 
     private var sessionId: String? = null
     private var initiating = false
@@ -85,9 +83,13 @@ constructor(val api: APIImpl, private val sessionManager: SessionManager?): WebS
     @Volatile var chunkingGuilds = false
 
     lateinit var websocket: WebSocket
+        private set
 
+    val handlers: Map<EventHandler.Type, EventHandler> = EventHandler.newEventHandlerMap(api)
     val traces: MutableSet<String> = HashSet()
     val rays: MutableSet<String> = HashSet()
+    val ready: Boolean
+        get() = !initiating
 
     var shouldReconnect = api.shouldAutoReconnect
 
@@ -103,6 +105,8 @@ constructor(val api: APIImpl, private val sessionManager: SessionManager?): WebS
             if(!previouslyConnected) {
                 previouslyConnected = true
                 LOG.info("Finished Connecting!")
+                api.signalReady()
+                api.dispatchEvent(ReadyEvent(api, api.responses))
             } else {
                 LOG.info("Finished Reloading!")
             }
@@ -116,7 +120,7 @@ constructor(val api: APIImpl, private val sessionManager: SessionManager?): WebS
 
         // Replay missed events
         var kson = eventsToReplay.poll()
-        while(kson != null) {
+        while(kson !== null) {
             dispatch(kson)
             kson = eventsToReplay.poll()
         }
@@ -167,7 +171,7 @@ constructor(val api: APIImpl, private val sessionManager: SessionManager?): WebS
 
         if(!ratelimitIdentify) {
             val shardInfo = api.shardInfo
-            if(calledFromSesManager && shardInfo != null)
+            if(calledFromSesManager && shardInfo !== null)
                 LOG.warn("Session Manager now attempting to reconnect a shard: ${shardInfo.shardString}")
             else
                 LOG.warn("WebSocket experienced a disconnect (Possibly due to poor connection)!")
@@ -214,7 +218,7 @@ constructor(val api: APIImpl, private val sessionManager: SessionManager?): WebS
     }
 
     fun close(code: Int = 1000, reason: String? = null) {
-        if(reason != null)
+        if(reason !== null)
             websocket.sendClose(code, reason)
         else
             websocket.sendClose(code)
@@ -231,9 +235,8 @@ constructor(val api: APIImpl, private val sessionManager: SessionManager?): WebS
 
     fun handle(events: Collection<KSONObject>) = events.forEach(::dispatch)
 
-    @Suppress("Unused")
-    fun queueChunkSyncRequest(kson: KSONObject) {
-        chunkSyncQueue.addLast("$kson")
+    fun queueChunkRequest(kson: KSONObject) {
+        chunkQueue.addLast("$kson")
     }
 
     @Throws(Exception::class)
@@ -273,21 +276,21 @@ constructor(val api: APIImpl, private val sessionManager: SessionManager?): WebS
 
         life.cancel()
 
-        if(serverCloseFrame != null) {
+        if(serverCloseFrame !== null) {
             rawCode = serverCloseFrame.closeCode
             closeCode = CloseCode.of(rawCode)
 
             when {
                 closeCode == CloseCode.RATE_LIMITED -> LOG.error("Websocket closed because you were rate-limited! " +
                                                                  "Sent 120 messages in less than a minute!")
-                closeCode != null -> LOG.debug("WebSocket connection closed with code $closeCode")
+                closeCode !== null -> LOG.debug("WebSocket connection closed with code $closeCode")
                 else -> LOG.warn("WebSocket connection closed with unknown meaning for close-code $rawCode!")
             }
         } else {
             rawCode = 1000
         }
 
-        val isInvalid = clientCloseFrame != null &&
+        val isInvalid = clientCloseFrame !== null &&
                         clientCloseFrame.closeCode == 1000 &&
                         clientCloseFrame.closeReason == "INVALIDATE_SESSION"
 
@@ -308,7 +311,7 @@ constructor(val api: APIImpl, private val sessionManager: SessionManager?): WebS
             if(isInvalid)
                 invalidate()
             api.dispatchEvent(DisconnectEvent(api, serverCloseFrame, clientCloseFrame, closedByServer))
-            if(sessionId == null && sessionManager != null)
+            if(sessionId === null && sessionManager !== null)
                 reconnectViaManager()
             else
                 reconnect()
@@ -323,7 +326,7 @@ constructor(val api: APIImpl, private val sessionManager: SessionManager?): WebS
 
         val res = kson.opt<Long>("s")
         // Response total
-        if(res != null) {
+        if(res !== null) {
             api.responses = res
         }
 
@@ -415,7 +418,7 @@ constructor(val api: APIImpl, private val sessionManager: SessionManager?): WebS
         }
 
         life.invokeOnCompletion(onCancelling = true) {
-            if(it != null) {
+            if(it !== null) {
                 handleCallbackError(websocket, it)
                 startLife(timeout)
             }
@@ -441,11 +444,11 @@ constructor(val api: APIImpl, private val sessionManager: SessionManager?): WebS
                     needRatelimit = false
                     attemptedToSend = false
 
-                    val chunkSyncRequest: String? = chunkSyncQueue.peekFirst()
+                    val chunkSyncRequest: String? = chunkQueue.peekFirst()
                     if(chunkSyncRequest != null) {
                         needRatelimit = !sendText(chunkSyncRequest, false)
                         if(!needRatelimit)
-                            chunkSyncQueue.removeFirst()
+                            chunkQueue.removeFirst()
 
                         attemptedToSend = true
                     } else {
@@ -563,7 +566,7 @@ constructor(val api: APIImpl, private val sessionManager: SessionManager?): WebS
 
                 else -> {
                     val eventHandlerType = EventHandler.Type.of(t)
-                    if(eventHandlerType != null && eventHandlerType in handlers) {
+                    if(eventHandlerType !== null && eventHandlerType in handlers) {
                         handlers[eventHandlerType]!!.handle(kson)
                     } else {
                         LOG.debug("Could not find handler for dispatch type: $eventHandlerType -> $kson")

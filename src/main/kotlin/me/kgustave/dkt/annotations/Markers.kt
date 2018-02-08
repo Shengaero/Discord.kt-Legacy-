@@ -83,3 +83,10 @@ annotation class EntityTrait
 @Target(AnnotationTarget.PROPERTY, AnnotationTarget.PROPERTY_GETTER, AnnotationTarget.PROPERTY_SETTER)
 @Retention(AnnotationRetention.SOURCE)
 annotation class InitializeASAP
+
+/**
+ * Marks a class or other type that is only used internally by the API.
+ */
+@Target(AnnotationTarget.CLASS)
+@Retention(AnnotationRetention.SOURCE)
+annotation class InternalOnly

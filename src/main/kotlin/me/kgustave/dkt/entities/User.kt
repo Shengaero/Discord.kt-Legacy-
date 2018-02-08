@@ -15,6 +15,8 @@
  */
 package me.kgustave.dkt.entities
 
+import me.kgustave.dkt.requests.RestPromise
+
 /**
  * Represents a Discord User as defined by the API.
  *
@@ -84,6 +86,10 @@ interface User : Mentionable, Snowflake {
      */
     val isBot: Boolean
 
+    val privateChannel: PrivateChannel
+
     override val asMention: String
         get() = "<@$id>"
+
+    fun openPrivateChannel(): RestPromise<PrivateChannel>
 }

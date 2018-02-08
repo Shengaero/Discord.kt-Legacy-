@@ -18,48 +18,60 @@ package me.kgustave.dkt.entities.impl
 
 import me.kgustave.dkt.API
 import me.kgustave.dkt.Permission
-import me.kgustave.dkt.entities.Channel
-import me.kgustave.dkt.entities.Role
-import me.kgustave.dkt.entities.Guild
-import me.kgustave.dkt.entities.Snowflake
+import me.kgustave.dkt.entities.*
+import java.awt.Color
 
 /**
  * @author Kaidan Gustave
  */
-class RoleImpl(override val id: Long, override val api: API): Role {
-    override lateinit var guild: Guild
-    override lateinit var name: String
-
-    override var isEveryoneRole = false
-    override var rawPosition = -1
-    override var rawPermissions = -1L
+class RoleImpl(
+    override val id: Long,
+    override val api: API,
+    override val guild: Guild,
+    override var name: String,
+    override var color: Color?,
+    override var isMentionable: Boolean,
+    override var rawPosition: Int,
+    override var rawPermissions: Long
+): Role {
+    private val effectivePermissions: Long
+        get() = rawPermissions xor guild.everyoneRole.rawPermissions
 
     internal val internalPermissions = ArrayList<Permission>()
 
+    override val isEveryoneRole = guild.id == id
     override val asMention: String
         get() = "<@&$id>"
     override val permissions: List<Permission>
         get() = internalPermissions
-    override val position: Int
-        get() {
-            if(isEveryoneRole)
-                return -1
+    override val position: Int get() {
+        if(isEveryoneRole)
+            return -1
 
-            // subtract 1 for 0 indexed, and 1 again to disregard @everyone
-            var i = guild.roleCache.size - 2
+        // subtract 1 for 0 indexed, and 1 again to disregard @everyone
+        var i = guild.roleCache.size - 2
 
-            guild.roleCache.forEach {
-                if(it == this)
-                    return i
-                i--
-            }
-
-            // If we somehow reach here, we are not in the guild.
-            throw IllegalStateException("Unable to determine role position in Guild (ID: ${guild.id})")
+        guild.roleCache.forEach {
+            if(it == this)
+                return i
+            i--
         }
 
-    private val effectivePermissions: Long
-        get() = rawPermissions xor guild.everyoneRole.rawPermissions
+        // If we somehow reach here, we are not in the guild.
+        throw IllegalStateException("Unable to determine role position in Guild (ID: ${guild.id})")
+    }
+
+    override fun canInteract(member: Member): Boolean {
+        TODO("not implemented")
+    }
+
+    override fun canInteract(role: Role): Boolean {
+        TODO("not implemented")
+    }
+
+    override fun canInteract(emote: Emote): Boolean {
+        TODO("not implemented")
+    }
 
     override fun hasPermission(vararg permissions: Permission): Boolean {
         val effectivePermissions = effectivePermissions
@@ -72,7 +84,7 @@ class RoleImpl(override val id: Long, override val api: API): Role {
         return true
     }
 
-    override fun hasPermission(channel: Channel, vararg permissions: Permission): Boolean {
+    override fun hasPermission(channel: GuildChannel, vararg permissions: Permission): Boolean {
         TODO("not implemented") //To change body of created functions use File | Settings | File Templates.
     }
 

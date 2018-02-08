@@ -15,14 +15,16 @@
  */
 package me.kgustave.dkt.entities
 
+import java.awt.Color
+
 /**
  * @author Kaidan Gustave
  */
 interface Role : Mentionable, Snowflake, PermissionHolder, Comparable<Role> {
     val name: String
-
+    val color: Color?
     val isEveryoneRole: Boolean
-
+    val isMentionable: Boolean
     val position: Int
     val rawPosition: Int
     val rawPermissions: Long

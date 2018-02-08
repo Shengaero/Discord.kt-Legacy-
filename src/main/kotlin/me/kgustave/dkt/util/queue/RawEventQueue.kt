@@ -1,5 +1,5 @@
 /*
- * Copyright 2018 Kaidan Gustave
+ * Copyright 2017 Kaidan Gustave
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package me.kgustave.dkt.requests.resources
+package me.kgustave.dkt.util.queue
 
 import me.kgustave.kson.KSONObject
 import java.util.*
@@ -25,7 +25,7 @@ import java.util.*
  * @since  1.0.0
  * @author Kaidan Gustave
  */
-class EventQueue : AbstractQueue<KSONObject>() {
+class RawEventQueue : AbstractQueue<KSONObject>() {
     private val list: MutableList<KSONObject> = LinkedList()
     override val size: Int
         get() = list.size

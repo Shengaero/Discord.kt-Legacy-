@@ -35,7 +35,7 @@ import me.kgustave.dkt.requests.RestPromise
 import me.kgustave.dkt.requests.Requester
 import me.kgustave.dkt.requests.Route
 import me.kgustave.dkt.requests.promises.PreCompletedPromise
-import me.kgustave.dkt.requests.resources.GuildEventQueue
+import me.kgustave.dkt.util.queue.GuildEventQueue
 import me.kgustave.dkt.util.unsupported
 import me.kgustave.kson.KSONObject
 import org.slf4j.Logger
@@ -45,7 +45,9 @@ import java.util.concurrent.ThreadFactory
 import java.util.concurrent.TimeUnit
 import javax.security.auth.login.LoginException
 import kotlin.concurrent.thread
+import kotlin.coroutines.experimental.Continuation
 import kotlin.coroutines.experimental.CoroutineContext
+import kotlin.coroutines.experimental.suspendCoroutine
 
 /**
  * @author Kaidan Gustave
@@ -57,9 +59,11 @@ constructor(config: APIConfig, private val _shardController: ShardControllerImpl
         val LOG: Logger = LoggerFactory.getLogger(API::class.java)
     }
 
+    private lateinit var readyContinuation: Continuation<Unit>
+
     // If the self-user is attached to the shard-controller we should
     // take that one immediately and use it.
-    private var _self: SelfUser? = _shardController?.let { if(it.selfUserIsInit) it.self else null }
+    @Volatile private var _self: SelfUser? = _shardController?.let { if(it.selfUserIsInit) it.self else null }
         set(value) {
             // Never set this field twice
             if(field != null)
@@ -81,7 +85,7 @@ constructor(config: APIConfig, private val _shardController: ShardControllerImpl
 
     override var shardInfo: API.ShardInfo? = null
         private set
-    override var status: API.Status = API.Status.INITIALIZING
+    @Volatile override var status: API.Status = API.Status.INITIALIZING
         set(value) {
             synchronized(field) {
                 // TODO Add an event handle here
@@ -120,6 +124,7 @@ constructor(config: APIConfig, private val _shardController: ShardControllerImpl
     internal val internalGuildCache = SnowflakeCacheImpl(Guild::name)
     internal val internalTextChannelCache = SnowflakeCacheImpl(TextChannel::name)
     internal val internalVoiceChannelCache = SnowflakeCacheImpl(VoiceChannel::name)
+    internal val internalPrivateChannelCache = SnowflakeCacheImpl<PrivateChannel>(null)
 
     internal val guildQueue = GuildEventQueue(this)
 
@@ -148,6 +153,8 @@ constructor(config: APIConfig, private val _shardController: ShardControllerImpl
         get() = internalTextChannelCache
     override val voiceChannelCache: SnowflakeCache<VoiceChannel>
         get() = internalVoiceChannelCache
+    override val privateChannelCache: SnowflakeCache<PrivateChannel>
+        get() = internalPrivateChannelCache
     override val users: List<User>
         get() = internalUserCache.toList()
     override val guilds: List<Guild>
@@ -156,11 +163,13 @@ constructor(config: APIConfig, private val _shardController: ShardControllerImpl
         get() = internalTextChannelCache.toList()
     override val voiceChannels: List<VoiceChannel>
         get() = internalVoiceChannelCache.toList()
+    override val privateChannels: List<PrivateChannel>
+        get() = privateChannelCache.toList()
     override val shardController: ShardController
         get() = _shardController ?: unsupported { "Cannot get ShardController for a non-sharded bot instance!" }
 
     // TODO Add SessionManager configurability
-    fun login(shardInfo: API.ShardInfo?, sessionManager: SessionManager?) {
+    suspend fun login(shardInfo: API.ShardInfo?, sessionManager: SessionManager?) {
         this.shardInfo = shardInfo
 
         // We are now logging in
@@ -177,6 +186,17 @@ constructor(config: APIConfig, private val _shardController: ShardControllerImpl
             LOG.debug("Initializing WebSocket...")
 
         websocket = DiscordWebSocket(this, sessionManager)
+
+        return suspendCoroutine {
+            readyContinuation = it
+        }
+    }
+
+    fun signalReady(exception: Throwable? = null) {
+        if(exception != null)
+            readyContinuation.resumeWithException(exception)
+        else
+            readyContinuation.resume(Unit)
     }
 
     fun dispatchEvent(event: Event) {

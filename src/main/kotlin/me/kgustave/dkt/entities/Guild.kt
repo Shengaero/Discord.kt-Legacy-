@@ -44,7 +44,7 @@ interface Guild : Snowflake, ChannelHolder {
     val explicitContentFilter: ExplicitContentFilter
 
     val roleCache: SnowflakeCache<Role>
-    val emoteCache: SnowflakeCache<Emote>
+    val emoteCache: SnowflakeCache<GuildEmote>
     val memberCache: MemberCache
     val categoryCache: SnowflakeCache<Category>
     val textChannelCache: SnowflakeCache<TextChannel>
@@ -54,6 +54,8 @@ interface Guild : Snowflake, ChannelHolder {
     val emotes: List<Emote>
     val members: List<Member>
     val categories: List<Category>
+
+    val self: Member
 
     fun getChannelsByName(name: String, ignoreCase: Boolean = false): List<GuildChannel>
     fun getCategoriesByName(name: String, ignoreCase: Boolean = false): List<Category>

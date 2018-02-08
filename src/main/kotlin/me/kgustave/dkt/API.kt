@@ -44,11 +44,13 @@ interface API {
     val guildCache: SnowflakeCache<Guild>
     val textChannelCache: SnowflakeCache<TextChannel>
     val voiceChannelCache: SnowflakeCache<VoiceChannel>
+    val privateChannelCache: SnowflakeCache<PrivateChannel>
 
     val users: List<User>
     val guilds: List<Guild>
     val textChannels: List<TextChannel>
     val voiceChannels: List<VoiceChannel>
+    val privateChannels: List<PrivateChannel>
 
     fun findUserById(id: Long): RestPromise<User>
 

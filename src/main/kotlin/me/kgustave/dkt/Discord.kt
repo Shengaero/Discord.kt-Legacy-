@@ -16,66 +16,67 @@
 @file:Suppress("MemberVisibilityCanPrivate", "MemberVisibilityCanBePrivate", "Unused")
 package me.kgustave.dkt
 
+import kotlinx.coroutines.experimental.*
 import me.kgustave.dkt.entities.impl.APIImpl
 import me.kgustave.dkt.handlers.shard.DefaultSessionManager
 import me.kgustave.dkt.handlers.shard.impl.ShardControllerImpl
-import kotlin.concurrent.thread
-import kotlin.coroutines.experimental.suspendCoroutine
+import kotlin.coroutines.experimental.CoroutineContext
 
 /**
+ * Information on [discord.gg](https://discord.gg/) as well
+ * as entry points for the Discord.kt API.
+ *
+ * @since  1.0.0
  * @author Kaidan Gustave
  */
 object Discord {
-    /**
-     * The first second of January 1, 2015, the
-     * moment Discord was officially live.
-     */
+    /** The first second of January 1, 2015, the moment Discord was officially live */
     const val EPOCH = 1420070400000L
+    /** The base URL for Discord: `https://discordapp.com` */
     const val BASE_URL = "https://discordapp.com"
+    /** The base API URL for Discord: `https://discordapp.com/api` */
     const val API_URL = "$BASE_URL/api"
+    /** The base CDN URL for Discord: `https://cdn.discordapp.com` */
     const val CDN_URL = "https://cdn.discordapp.com"
 
     // We save a singular shard controller implementation to use
     // when a developer shards their bot. This is purely internal.
     private lateinit var shardController: ShardControllerImpl
 
-    suspend fun awaitLogin(block: APIConfig.() -> Unit): API = suspendCoroutine {
-        try {
-            it.resume(login(block))
-        } catch(t: Throwable) {
-            it.resumeWithException(t)
-        }
+    suspend fun awaitLogin(block: APIConfig.() -> Unit): API {
+        val config = APIConfig().apply(block)
+        val api = APIImpl(config)
+        api.login(shardInfo = null, sessionManager = config.sessionManager)
+        return api
+    }
+
+    suspend fun awaitShardLogin(shardId: Int, shardTotal: Int, block: APIConfig.() -> Unit): API {
+        val config = APIConfig().apply(block)
+        if(!::shardController.isInitialized)
+            shardController = ShardControllerImpl(config.sessionManager ?: DefaultSessionManager())
+        val api = APIImpl(config, shardController)
+        api.login(shardInfo = API.ShardInfo(shardId, shardTotal), sessionManager = shardController.sessionManager)
+        return api
     }
 
     fun beginLogin(block: APIConfig.() -> Unit): API {
         val config = APIConfig().apply(block)
         val api = APIImpl(config)
-
-        thread(isDaemon = true, name = "Kotlincord Login-Thread") {
+        val loginContext = newSingleThreadContext("Kotlincord Login-Thread")
+        val loginJob = launch(loginContext, CoroutineStart.LAZY) {
             api.login(shardInfo = null, sessionManager = config.sessionManager)
         }
-
+        loginJob.invokeOnCompletion { loginContext.close() }
+        loginJob.start()
         return api
     }
 
-    fun login(block: APIConfig.() -> Unit): API {
+    fun login(context: CoroutineContext = Unconfined, block: APIConfig.() -> Unit): API {
         val config = APIConfig().apply(block)
         val api = APIImpl(config)
-
-        api.login(shardInfo = null, sessionManager = config.sessionManager) // TODO Shard configurations
-        return api
-    }
-
-    fun beginShardLogin(shardId: Int, shardTotal: Int, block: APIConfig.() -> Unit): API {
-        val config = APIConfig().apply(block)
-
-        if(!::shardController.isInitialized)
-            shardController = ShardControllerImpl(config.sessionManager ?: DefaultSessionManager())
-
-        val api = APIImpl(config, shardController)
-
-        api.login(shardInfo = API.ShardInfo(shardId, shardTotal), sessionManager = shardController.sessionManager)
-
+        runBlocking(context) {
+            api.login(shardInfo = null, sessionManager = config.sessionManager)
+        }
         return api
     }
 

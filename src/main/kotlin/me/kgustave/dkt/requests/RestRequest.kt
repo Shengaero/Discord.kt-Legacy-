@@ -26,8 +26,7 @@ import org.apache.commons.collections4.map.CaseInsensitiveMap
 /**
  * @author Kaidan Gustave
  */
-class RestRequest<T>
-constructor(
+class RestRequest<T>(
     val promise: RestPromise<T>,
     val route: Route.FormattedRoute,
     val deferred: CompletableDeferred<T>,

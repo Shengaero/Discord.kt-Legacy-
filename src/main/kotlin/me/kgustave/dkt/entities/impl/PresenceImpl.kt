@@ -13,6 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+@file:Suppress("CanBePrimaryConstructorProperty")
 package me.kgustave.dkt.entities.impl
 
 import me.kgustave.dkt.OnlineStatus
@@ -25,7 +26,7 @@ import me.kgustave.kson.KSONObject
 import me.kgustave.kson.kson
 
 class PresenceImpl(
-    override val api: APIImpl,
+    api: APIImpl,
     status: OnlineStatus? = null,
     activity: Activity? = null,
     afk: Boolean = false
@@ -33,24 +34,23 @@ class PresenceImpl(
     // Create a lock for bulk presence modification
     internal var updateLocked: Boolean = false
 
-    override var status: OnlineStatus by updating(status
-                                                                                ?: OnlineStatus.ONLINE) { if(!updateLocked) update() }
+    override val api = api
+    override var status: OnlineStatus by updating(status ?: OnlineStatus.ONLINE) { if(!updateLocked) update() }
     override var activity: Activity? by updating(activity) { if(!updateLocked) update() }
     override var afk: Boolean by updating(afk) { if(!updateLocked) update() }
 
-    val kson: KSONObject
-        get() = kson {
-            this["afk"] = afk
-            this["status"] = status
-            this["game"] = activity?.run {
-                kson game@ {
-                    this@game["name"] = this@run.name
-                    this@game["type"] = this@run.type.ordinal
-                    this@run.url?.let { this@game["url"] = it }
-                }
+    val kson: KSONObject get() = kson {
+        this["afk"] = afk
+        this["status"] = status
+        this["game"] = activity?.run {
+            kson game@ {
+                this@game["name"] = this@run.name
+                this@game["type"] = this@run.type.ordinal
+                this@run.url?.let { this@game["url"] = it }
             }
-            this["since"] = currentTime
         }
+        this["since"] = currentTime
+    }
 
     internal inline fun updateInBulk(block: Presence.() -> Unit) {
         // Lock the presence so we can make changes
