@@ -21,4 +21,8 @@ import me.kgustave.dkt.entities.Guild
 /**
  * @author Kaidan Gustave
  */
-class GuildAvailableEvent(override val api: API, override val responseNumber: Long, override val guild: Guild): GuildEvent
+class GuildAvailableEvent(
+    override val api: API,
+    override val responseNumber: Long,
+    override val guild: Guild
+): GuildEvent

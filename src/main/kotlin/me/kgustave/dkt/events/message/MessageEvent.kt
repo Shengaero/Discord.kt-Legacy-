@@ -13,16 +13,20 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package me.kgustave.dkt.events.guild
+@file:Suppress("Unused")
+package me.kgustave.dkt.events.message
 
-import me.kgustave.dkt.API
-import me.kgustave.dkt.entities.Guild
+import me.kgustave.dkt.entities.Channel
+import me.kgustave.dkt.entities.MessageChannel
+import me.kgustave.dkt.events.Event
 
 /**
  * @author Kaidan Gustave
  */
-class GuildJoinEvent(
-    override val api: API,
-    override val responseNumber: Long,
-    override val guild: Guild
-): GuildEvent
+interface MessageEvent : Event {
+    val messageId: Long
+    val channel: MessageChannel
+    val channelType: Channel.Type
+        get() = channel.type
+    fun isFrom(channelType: Channel.Type): Boolean = this.channelType == channelType
+}

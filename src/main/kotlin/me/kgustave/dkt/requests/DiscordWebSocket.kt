@@ -444,16 +444,16 @@ constructor(val api: APIImpl, private val sessionManager: SessionManager?): WebS
                     needRatelimit = false
                     attemptedToSend = false
 
-                    val chunkSyncRequest: String? = chunkQueue.peekFirst()
-                    if(chunkSyncRequest != null) {
-                        needRatelimit = !sendText(chunkSyncRequest, false)
+                    val chunkRequest = chunkQueue.peekFirst()
+                    if(chunkRequest !== null) {
+                        needRatelimit = !sendText(chunkRequest, false)
                         if(!needRatelimit)
                             chunkQueue.removeFirst()
 
                         attemptedToSend = true
                     } else {
-                        val message: String? = rateLimitQueue.peekFirst()
-                        if(message != null) {
+                        val message = rateLimitQueue.peekFirst()
+                        if(message !== null) {
                             needRatelimit = !sendText(message, false)
                             if(!needRatelimit)
                                 rateLimitQueue.removeFirst()

@@ -212,6 +212,10 @@ class GuildImpl(
         return voiceChannelCache[id]
     }
 
+    override fun getMember(user: User): Member? {
+        return getMemberById(user.id)
+    }
+
     override fun getMemberById(id: Long): Member? {
         return memberCache[id]
     }

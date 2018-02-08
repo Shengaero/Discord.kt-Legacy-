@@ -67,6 +67,8 @@ interface Guild : Snowflake, ChannelHolder {
     fun getTextChannelById(id: Long): TextChannel?
     fun getVoiceChannelById(id: Long): VoiceChannel?
 
+    fun getMember(user: User): Member?
+
     fun getMemberById(id: Long): Member?
     fun getMembersByName(name: String, ignoreCase: Boolean = false): List<Member>
     fun getMembersByUsername(name: String, ignoreCase: Boolean = false): List<Member>

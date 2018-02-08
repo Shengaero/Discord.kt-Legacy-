@@ -13,6 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+@file:Suppress("Unused")
 package me.kgustave.dkt.events
 
 import com.neovisionaries.ws.client.WebSocketFrame
@@ -23,9 +24,11 @@ import java.time.OffsetDateTime
  * @author Kaidan Gustave
  */
 class DisconnectEvent(
-    override val api: API, val serverCloseFrame: WebSocketFrame?,
-    val clientCloseFrame: WebSocketFrame?, val closedByServer: Boolean
+    override val api: API,
+    val serverCloseFrame: WebSocketFrame?,
+    val clientCloseFrame: WebSocketFrame?,
+    val closedByServer: Boolean
 ): Event {
-    override val responseNumber: Long = -1
+    override val responseNumber = -1L
     val disconnectTime: OffsetDateTime = OffsetDateTime.now()
 }

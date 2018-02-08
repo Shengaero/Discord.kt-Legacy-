@@ -13,16 +13,23 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package me.kgustave.dkt.events.guild
+package me.kgustave.dkt.events.message.priv
 
 import me.kgustave.dkt.API
-import me.kgustave.dkt.entities.Guild
+import me.kgustave.dkt.entities.PrivateChannel
+import me.kgustave.dkt.entities.PrivateMessage
+import me.kgustave.dkt.events.message.MessageReceivedEvent
 
 /**
  * @author Kaidan Gustave
  */
-class GuildJoinEvent(
+class PrivateMessageReceivedEvent(
     override val api: API,
     override val responseNumber: Long,
-    override val guild: Guild
-): GuildEvent
+    override val message: PrivateMessage
+): MessageReceivedEvent {
+    override val privateMessage: PrivateMessage
+        get() = message
+    override val privateChannel: PrivateChannel
+        get() = message.channel
+}
