@@ -18,4 +18,8 @@ package me.kgustave.dkt.entities
 /**
  * @author Kaidan Gustave
  */
-interface VoiceChannel : GuildChannel, Comparable<VoiceChannel>
+interface VoiceChannel : GuildChannel, Comparable<VoiceChannel> {
+    val userLimit: Int
+    val connectedMembers: List<Member>
+    val voiceStates: List<GuildVoiceState>
+}

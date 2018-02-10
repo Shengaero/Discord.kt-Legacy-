@@ -31,10 +31,10 @@ class ReadyHandler(override val api: APIImpl): EventHandler(Type.READY) {
         val LOG = createLogger(ReadyHandler::class)
     }
 
-    internal val incompleteGuilds = HashSet<Long>()
-    internal val unavailableGuilds = HashSet<Long>()
-    internal val acknowledgedGuilds = HashSet<Long>()
-    internal val chunkingGuilds = HashSet<Long>()
+    private val incompleteGuilds = HashSet<Long>()
+    private val unavailableGuilds = HashSet<Long>()
+    private val acknowledgedGuilds = HashSet<Long>()
+    private val chunkingGuilds = HashSet<Long>()
 
     private lateinit var readyEvent: KSONObject
 
@@ -45,9 +45,7 @@ class ReadyHandler(override val api: APIImpl): EventHandler(Type.READY) {
         val rawGuilds = (event["guilds"] as KSONArray).mapNotNull { it as? KSONObject }
         val entityBuilder = api.entityBuilder
 
-        synchronized(entityBuilder) {
-            entityBuilder.createSelf(rawSelf)
-        }
+        entityBuilder.createSelf(rawSelf)
 
         // First we cache all guild IDs that are incomplete
         rawGuilds.forEach { incompleteGuilds += snowflake(it["id"]) }
@@ -90,19 +88,35 @@ class ReadyHandler(override val api: APIImpl): EventHandler(Type.READY) {
     }
 
     private fun completeGuildLoading(event: KSONObject = readyEvent) {
-        api.websocket.chunkingGuilds = false
+        api.websocket.chunkingGuildMembers = false
         val entityBuilder = api.entityBuilder
 
         // Private Channel Setup
         val rawPcs = event["private_channels"] as KSONArray
         if(rawPcs.isNotEmpty()) {
-            val filtered = filterOutPossibleGroups(rawPcs)
+            val filtered = ArrayList<KSONObject>()
+            for(value in rawPcs) {
+                val pc = value as? KSONObject
+                if(pc === null) {
+                    LOG.warn("PrivateChannel array of READY data was not a JSON Object")
+                    continue
+                }
+                // This represents a Group as opposed to a DM, this is not
+                // possible, but we check and filter regardless for consistency
+                // and error safety.
+                if("recipients" !in pc) {
+                    LOG.debug("Found object in PrivateChannel array of READY data matching a Group DM. Removing...")
+                    continue
+                }
+                filtered.add(pc)
+            }
             filtered.forEach { entityBuilder.createPrivateChannel(it) }
         }
 
         api.websocket.ready()
     }
 
+    @Suppress("Unused")
     fun clear() {
         incompleteGuilds.clear()
         unavailableGuilds.clear()
@@ -112,7 +126,7 @@ class ReadyHandler(override val api: APIImpl): EventHandler(Type.READY) {
 
     private fun attemptDoChunking() {
         if(acknowledgedGuilds.size == incompleteGuilds.size) {
-            api.websocket.chunkingGuilds = true
+            api.websocket.chunkingGuildMembers = true
             doChunking()
         }
     }
@@ -152,26 +166,5 @@ class ReadyHandler(override val api: APIImpl): EventHandler(Type.READY) {
         }
 
         chunkingGuilds.clear()
-    }
-
-    private fun filterOutPossibleGroups(pcs: KSONArray): List<KSONObject> {
-        val newPcs = ArrayList<KSONObject>()
-        for(value in pcs) {
-            val pc = value as? KSONObject
-            if(pc === null) {
-                LOG.warn("PrivateChannel array of READY data was not a JSON Object! " +
-                         "You should report this to the maintainers of this library! $value")
-                continue
-            }
-            // This represents a Group as opposed to a DM, this is not
-            // possible, but we check and filter regardless for consistency
-            // and error safety.
-            if("recipients" !in pc) {
-                LOG.debug("Found object in PrivateChannel array of READY data matching a Group DM. Removing...")
-                continue
-            }
-            newPcs.add(pc)
-        }
-        return newPcs
     }
 }

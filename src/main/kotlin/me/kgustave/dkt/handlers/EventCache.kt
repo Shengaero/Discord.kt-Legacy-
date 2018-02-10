@@ -27,10 +27,13 @@ class EventCache {
 
     private val map = HashMap<EventCache.Type, HashMap<Long, ArrayList<() -> Unit>>>()
 
+    val size: Int
+        get() = map.values.sumBy { it.values.sumBy { it.size } }
+
     fun add(type: EventCache.Type, id: Long, function: () -> Unit) {
         val cache = map[type] ?: HashMap<Long, ArrayList<() -> Unit>>().also { map[type] = it }
         val functions = cache[id] ?: ArrayList<() -> Unit>().also { cache[id] = it }
-        functions.add(function)
+        functions += function
     }
 
     fun run(type: EventCache.Type, id: Long) {
@@ -40,9 +43,6 @@ class EventCache {
             functions.onEach { it() }.clear()
         }
     }
-
-    val size: Int
-        get() = map.values.sumBy { it.values.sumBy { it.size } }
 
     fun clear(type: EventCache.Type? = null, id: Long? = null) {
         if(type === null && id === null) {

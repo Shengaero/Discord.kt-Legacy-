@@ -73,7 +73,17 @@ interface Channel : Snowflake {
  */
 interface GuildChannel : Channel {
     val name: String
+    val position: Int
+    val rawPosition: Int
+    val category: Category?
+
+    val permissionOverrides: List<PermissionOverride>
+    val memberPermissionOverrides: List<MemberPermissionOverride>
+    val rolePermissionOverrides: List<RolePermissionOverride>
 
     /** The [Guild] this Channel is from, never-null. */
     override val guild: Guild
+
+    fun getPermissionOverride(member: Member): MemberPermissionOverride?
+    fun getPermissionOverride(role: Role): RolePermissionOverride?
 }

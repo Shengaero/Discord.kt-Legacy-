@@ -34,4 +34,6 @@ fun createLogger(name: String): Logger = LoggerFactory.getLogger(name)
 
 fun <T> unmodifiableList(list: List<T>): List<T> = Collections.unmodifiableList(list)
 
+fun <T> unmodifiableList(vararg elements: T): List<T> = Arrays.asList(*elements)
+
 fun <T> singletonList(value: T): List<T> = Collections.singletonList(value)

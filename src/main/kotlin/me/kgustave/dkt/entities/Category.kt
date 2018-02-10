@@ -18,4 +18,7 @@ package me.kgustave.dkt.entities
 /**
  * @author Kaidan Gustave
  */
-interface Category : GuildChannel, ChannelHolder, Comparable<Category>
+interface Category : GuildChannel, ChannelHolder, Comparable<Category> {
+    override val category: Category?
+        get() = null
+}

@@ -37,11 +37,11 @@ class SelfUserImpl(
     override var avatarId: String? = null
 
     override val avatarUrl: String
-        get() = avatarId?.let { UserImpl.AVY_EXT.format(id, it) } ?: defaultAvatarUrl
+        get() = avatarId?.let { UserImpl.AVY_URL.format(id, it) } ?: defaultAvatarUrl
     override val defaultAvatarId: String
         get() = with(UserImpl) { DEFAULT_AVATAR_HASHES[discriminator % DEFAULT_AVATAR_HASHES.size] }
     override val defaultAvatarUrl: String
-        get() = UserImpl.DEFAULT_AVY_EXT.format(defaultAvatarId)
+        get() = UserImpl.DEFAULT_AVY_URL.format(defaultAvatarId)
     override val privateChannel: PrivateChannel
         get() = unsupported { "Cannot get a PrivateChannel with self!" }
 

@@ -53,6 +53,8 @@ fun snowflake(any: Any): Long {
 
         is Long -> any
 
-        else -> throw IllegalStateException("Provided value was not a String or Long!")
+        is Int -> any.toLong()
+
+        else -> throw IllegalStateException("Provided value was not a String or Long: $any")
     }
 }

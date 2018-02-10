@@ -26,7 +26,7 @@ import me.kgustave.dkt.exceptions.DiscordConnectionException
 import me.kgustave.dkt.events.DisconnectEvent
 import me.kgustave.dkt.events.ReadyEvent
 import me.kgustave.dkt.events.ShutdownEvent
-import me.kgustave.dkt.handlers.shard.SessionManager
+import me.kgustave.dkt.handlers.SessionManager
 import me.kgustave.dkt.handlers.event.EventHandler
 import me.kgustave.dkt.handlers.event.GuildMembersChunkHandler
 import me.kgustave.dkt.util.queue.RawEventQueue
@@ -51,7 +51,7 @@ import kotlin.math.min
  * @author Kaidan Gustave
  */
 class DiscordWebSocket
-constructor(val api: APIImpl, private val sessionManager: SessionManager?): WebSocketAdapter(), WebSocketListener {
+constructor(val api: APIImpl, private val sessionManager: SessionManager): WebSocketAdapter(), WebSocketListener {
     companion object {
         private val LOG = createLogger(DiscordWebSocket::class)
         const val IDENTIFY_DELAY = 5 // Seconds
@@ -80,7 +80,7 @@ constructor(val api: APIImpl, private val sessionManager: SessionManager?): WebS
     private var heartbeatStart = -1L
     private var reconnectDelay = 2
 
-    @Volatile var chunkingGuilds = false
+    @Volatile var chunkingGuildMembers = false
 
     lateinit var websocket: WebSocket
         private set
@@ -157,13 +157,13 @@ constructor(val api: APIImpl, private val sessionManager: SessionManager?): WebS
         }
 
         try {
-            sessionManager!!.add(this)
+            sessionManager.add(this)
         } catch(e: IllegalAccessException) {
             LOG.error("SessionManager rejected the session when attempting to add it to the queue!")
         }
     }
 
-    fun reconnect(calledFromSesManager: Boolean = false, handleIdentify: Boolean = true) {
+    fun reconnect(useSessionManager: Boolean = false, handleIdentify: Boolean = true) {
         if(shutdown) {
             api.status = API.Status.SHUTDOWN
             return api.dispatchEvent(ShutdownEvent(api, 1000))
@@ -171,7 +171,7 @@ constructor(val api: APIImpl, private val sessionManager: SessionManager?): WebS
 
         if(!ratelimitIdentify) {
             val shardInfo = api.shardInfo
-            if(calledFromSesManager && shardInfo !== null)
+            if(useSessionManager && shardInfo !== null)
                 LOG.warn("Session Manager now attempting to reconnect a shard: ${shardInfo.shardString}")
             else
                 LOG.warn("WebSocket experienced a disconnect (Possibly due to poor connection)!")
@@ -212,9 +212,9 @@ constructor(val api: APIImpl, private val sessionManager: SessionManager?): WebS
         shutdown = true
         shouldReconnect = false
 
-        sessionManager?.remove(this) // Remove this if we are in a queue
+        sessionManager.remove(this) // Remove this if we are in a queue
 
-        close(reason = "Shutting Down...")
+        close(reason = "Shutting Down")
     }
 
     fun close(code: Int = 1000, reason: String? = null) {
@@ -308,10 +308,13 @@ constructor(val api: APIImpl, private val sessionManager: SessionManager?): WebS
             api.status = API.Status.SHUTDOWN
             api.dispatchEvent(ShutdownEvent(api, rawCode))
         } else {
-            if(isInvalid)
+            if(isInvalid) {
+                // We dropped our session, we must
+                // invalidate and send a RESUME
                 invalidate()
+            }
             api.dispatchEvent(DisconnectEvent(api, serverCloseFrame, clientCloseFrame, closedByServer))
-            if(sessionId === null && sessionManager !== null)
+            if(sessionId === null)
                 reconnectViaManager()
             else
                 reconnect()
@@ -377,7 +380,7 @@ constructor(val api: APIImpl, private val sessionManager: SessionManager?): WebS
 
             // We opt 'd' here because if we get an OP that is unknown,
             // we have absolutely no idea what it might contain.
-            else -> LOG.warn("Got an OP Code ($op):\n${kson.opt<Any>("d")}")
+            else -> LOG.warn("Got an unknown OP Code ($op):\n${kson.opt<Any>("d")}")
         }
     }
 
@@ -483,11 +486,29 @@ constructor(val api: APIImpl, private val sessionManager: SessionManager?): WebS
     }
 
     private fun invalidate() {
-        sessionId = null // Empty sessionId means we haven't sent IDENTIFY yet, or that our session has been invalidated
-        chunkingGuilds = false
+        // Empty sessionId means we haven't sent IDENTIFY yet, or that our session has been invalidated
+        sessionId = null
+
+        // We are no longer chunking guilds
+        chunkingGuildMembers = false
+
+        // IDENTIFY must be resent since our session is now invalid
         sentIdentify = false
 
-        // TODO Invalidation
+        // Clear the current Chunking Members queue
+        chunkQueue.clear()
+
+        // Clear our entity caches since we will need to
+        // re-populate them when we get a proper RESUME
+        api.internalUserCache.entityMap.clear()
+        api.internalGuildCache.entityMap.clear()
+        api.internalTextChannelCache.entityMap.clear()
+        api.internalVoiceChannelCache.entityMap.clear()
+        api.internalPrivateChannelCache.entityMap.clear()
+
+        // Clear the GuildQueue and EventCaches
+        api.guildQueue.clear()
+        api.eventCache.clear()
     }
 
     private fun dispatch(kson: KSONObject) {
@@ -510,10 +531,10 @@ constructor(val api: APIImpl, private val sessionManager: SessionManager?): WebS
                            type == "GUILD_MEMBERS_CHUNK" ||
                            type == "RESUMED" ||
                            type == "GUILD_SYNC" ||
-                           (!chunkingGuilds && type == "GUILD_CREATE"))) {
+                           (!chunkingGuildMembers && type == "GUILD_CREATE"))) {
 
             val data = kson["d"] as KSONObject
-            if(chunkingGuilds && type == "GUILD_DELETE" && "unavailable" in data && data["unavailable"] as Boolean) {
+            if(chunkingGuildMembers && type == "GUILD_DELETE" && "unavailable" in data && data["unavailable"] as Boolean) {
                 // We convert these to GUILD_CREATE
                 type = "GUILD_CREATE"
                 kson["t"] = "GUILD_CREATE"

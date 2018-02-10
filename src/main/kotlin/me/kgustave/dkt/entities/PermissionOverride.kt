@@ -21,22 +21,30 @@ import me.kgustave.dkt.Permission
 /**
  * @author Kaidan Gustave
  */
-interface PermissionOverride<out T: PermissionHolder> {
+interface PermissionOverride {
     val guild: Guild
-    val allowed: List<Permission>
-    val effective: List<Permission>
-    val denied: List<Permission>
-    val overridden: T
+    val member: Member?
+    val role: Role?
     val channel: GuildChannel
     val api: API
 
+    val allowed: List<Permission>
+        get() = Permission.fromRaw(allowedRaw)
+    val denied: List<Permission>
+        get() = Permission.fromRaw(deniedRaw)
+    val effective: List<Permission>
+        get() = Permission.fromRaw(effectiveRaw)
+
     val allowedRaw: Long
-        get() = Permission.rawPerms(*allowed.toTypedArray())
-    val effectiveRaw: Long
-        get() = Permission.rawPerms(*effective.toTypedArray())
     val deniedRaw: Long
-        get() = Permission.rawPerms(*denied.toTypedArray())
+    val effectiveRaw: Long
+        get() = (allowedRaw or deniedRaw).inv()
 }
 
-interface MemberPermissionOverride : PermissionOverride<Member>
-interface RolePermissionOverride : PermissionOverride<Role>
+interface MemberPermissionOverride : PermissionOverride {
+    override val member: Member
+}
+
+interface RolePermissionOverride : PermissionOverride {
+    override val role: Role
+}

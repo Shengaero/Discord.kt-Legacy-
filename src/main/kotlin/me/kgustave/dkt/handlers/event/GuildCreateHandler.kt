@@ -20,6 +20,7 @@ import me.kgustave.dkt.entities.impl.GuildImpl
 import me.kgustave.dkt.events.guild.GuildAvailableEvent
 import me.kgustave.dkt.events.guild.GuildJoinEvent
 import me.kgustave.dkt.events.guild.UnavailableGuildJoinEvent
+import me.kgustave.dkt.handlers.EventCache
 import me.kgustave.dkt.util.snowflake
 import me.kgustave.kson.KSONObject
 
@@ -53,6 +54,7 @@ class GuildCreateHandler(override val api: APIImpl): EventHandler(Type.GUILD_CRE
                     // Now the guild that we have created never existed this
                     // means that it's new to us, so we fire a GuildJoinEvent
                     api.dispatchEvent(GuildJoinEvent(api, responseNumber, guild))
+                    api.eventCache.run(EventCache.Type.GUILD, guild.id)
                 } else {
                     // The guild was not new to us, it did exist previous to now
                     // and it is now available to us, so we fire a GuildAvailableEvent

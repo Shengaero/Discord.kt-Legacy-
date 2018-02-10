@@ -18,7 +18,7 @@ package me.kgustave.dkt
 
 import me.kgustave.dkt.entities.Activity
 import me.kgustave.dkt.events.Event
-import me.kgustave.dkt.handlers.shard.SessionManager
+import me.kgustave.dkt.handlers.SessionManager
 import me.kgustave.dkt.hooks.EventDispatcher
 import me.kgustave.dkt.hooks.EventListener
 import okhttp3.OkHttpClient

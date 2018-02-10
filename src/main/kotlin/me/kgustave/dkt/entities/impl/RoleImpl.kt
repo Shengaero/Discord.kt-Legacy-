@@ -51,7 +51,8 @@ class RoleImpl(
         // subtract 1 for 0 indexed, and 1 again to disregard @everyone
         var i = guild.roleCache.size - 2
 
-        guild.roleCache.forEach {
+        // Calling roles as opposed to roleCache orders it
+        guild.roles.forEach {
             if(it == this)
                 return i
             i--

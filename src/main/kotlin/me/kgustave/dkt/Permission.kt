@@ -79,6 +79,13 @@ enum class Permission(val offset: Int, val isGuild: Boolean, val isChannel: Bool
         inline fun permsMatching(condition: (Permission) -> Boolean): Array<Permission>
             = values().filter(condition).toTypedArray()
 
+        fun fromRaw(rawPerms: Long): List<Permission> {
+            return values().mapNotNull {
+                if(it == UNKNOWN) null
+                else it.takeIf { (rawPerms shr it.offset) and 1 == 1L }
+            }
+        }
+
         fun rawPerms(vararg perms: Permission): Long {
             var i = 0L
             for(perm in perms)

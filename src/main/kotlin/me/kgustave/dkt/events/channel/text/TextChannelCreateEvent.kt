@@ -1,5 +1,5 @@
 /*
- * Copyright 2018 Kaidan Gustave
+ * Copyright 2017 Kaidan Gustave
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -13,19 +13,21 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package me.kgustave.dkt.handlers.shard
+package me.kgustave.dkt.events.channel.text
 
 import me.kgustave.dkt.API
-import me.kgustave.dkt.entities.SelfUser
-import me.kgustave.dkt.handlers.SessionManager
+import me.kgustave.dkt.entities.Guild
+import me.kgustave.dkt.entities.TextChannel
+import me.kgustave.dkt.events.channel.ChannelEvent
 
 /**
  * @author Kaidan Gustave
  */
-interface ShardController {
-    val self: SelfUser
-    val sessionManager: SessionManager
-    val shards: List<API>
-
-    fun getShardById(id: Int): API
+class TextChannelCreateEvent(
+    override val api: API,
+    override val responseNumber: Long,
+    override val channel: TextChannel
+): ChannelEvent {
+    override val guild: Guild
+        get() = channel.guild
 }

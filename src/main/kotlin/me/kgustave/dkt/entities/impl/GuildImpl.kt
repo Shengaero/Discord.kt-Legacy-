@@ -142,8 +142,10 @@ class GuildImpl(
             return field
         }
 
-    override val self: Member
-        get() = TODO("not implemented")
+    override val self: Member get() {
+        checkUnavailable()
+        return getMember(api.self)!!
+    }
     override val iconUrl: String? get() {
         checkUnavailable()
         return iconId?.let { ICON_CDN.format(id, it) }
@@ -201,15 +203,15 @@ class GuildImpl(
     }
 
     override fun getCategoryById(id: Long): Category? {
-        return categoryCache[id]
+        return categoryCache.getById(id)
     }
 
     override fun getTextChannelById(id: Long): TextChannel? {
-        return textChannelCache[id]
+        return textChannelCache.getById(id)
     }
 
     override fun getVoiceChannelById(id: Long): VoiceChannel? {
-        return voiceChannelCache[id]
+        return voiceChannelCache.getById(id)
     }
 
     override fun getMember(user: User): Member? {
@@ -217,7 +219,7 @@ class GuildImpl(
     }
 
     override fun getMemberById(id: Long): Member? {
-        return memberCache[id]
+        return memberCache.getById(id)
     }
 
     override fun getMembersByName(name: String, ignoreCase: Boolean): List<Member> {
@@ -234,6 +236,14 @@ class GuildImpl(
 
     override fun getMembersByAnyName(name: String, ignoreCase: Boolean): List<Member> {
         TODO("not implemented")
+    }
+
+    override fun getRoleById(id: Long): Role? {
+        return roleCache.getById(id)
+    }
+
+    override fun getRolesByName(name: String, ignoreCase: Boolean): List<Role> {
+        return roleCache.getByName(name, ignoreCase)
     }
 
     override fun leave(): RestPromise<Unit> = RestPromise.simple(api, Route.LeaveGuild.format()) { res, req ->

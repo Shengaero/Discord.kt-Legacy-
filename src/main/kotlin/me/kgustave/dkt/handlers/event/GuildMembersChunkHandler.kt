@@ -16,11 +16,10 @@
 package me.kgustave.dkt.handlers.event
 
 import me.kgustave.dkt.entities.impl.APIImpl
+import me.kgustave.dkt.util.createLogger
 import me.kgustave.dkt.util.snowflake
 import me.kgustave.kson.KSONArray
 import me.kgustave.kson.KSONObject
-import org.slf4j.Logger
-import org.slf4j.LoggerFactory
 import java.util.*
 
 /**
@@ -28,7 +27,7 @@ import java.util.*
  */
 class GuildMembersChunkHandler(override val api: APIImpl): EventHandler(Type.GUILD_MEMBERS_CHUNK) {
     companion object {
-        val LOG: Logger = LoggerFactory.getLogger(GuildMembersChunkHandler::class.java)
+        val LOG = createLogger(GuildMembersChunkHandler::class)
     }
 
     private val expectedGuildMemberMap = HashMap<Long, Int>()
@@ -72,6 +71,7 @@ class GuildMembersChunkHandler(override val api: APIImpl): EventHandler(Type.GUI
         }
     }
 
+    @Suppress("Unused")
     fun clear() {
         expectedGuildMemberMap.clear()
         memberChunkCache.clear()

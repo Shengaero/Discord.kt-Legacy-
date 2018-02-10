@@ -17,8 +17,8 @@ package me.kgustave.dkt.handlers.shard.impl
 
 import me.kgustave.dkt.API
 import me.kgustave.dkt.entities.SelfUser
-import me.kgustave.dkt.handlers.shard.DefaultSessionManager
-import me.kgustave.dkt.handlers.shard.SessionManager
+import me.kgustave.dkt.handlers.DefaultSessionManager
+import me.kgustave.dkt.handlers.SessionManager
 import me.kgustave.dkt.handlers.shard.ShardController
 
 /**

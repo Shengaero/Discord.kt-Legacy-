@@ -18,7 +18,7 @@ package me.kgustave.dkt
 
 import kotlinx.coroutines.experimental.*
 import me.kgustave.dkt.entities.impl.APIImpl
-import me.kgustave.dkt.handlers.shard.DefaultSessionManager
+import me.kgustave.dkt.handlers.DefaultSessionManager
 import me.kgustave.dkt.handlers.shard.impl.ShardControllerImpl
 import kotlin.coroutines.experimental.CoroutineContext
 
@@ -46,7 +46,7 @@ object Discord {
     suspend fun awaitLogin(block: APIConfig.() -> Unit): API {
         val config = APIConfig().apply(block)
         val api = APIImpl(config)
-        api.login(shardInfo = null, sessionManager = config.sessionManager)
+        api.login(shardInfo = null, sessionManager = config.sessionManager ?: DefaultSessionManager())
         return api
     }
 
@@ -64,7 +64,7 @@ object Discord {
         val api = APIImpl(config)
         val loginContext = newSingleThreadContext("Kotlincord Login-Thread")
         val loginJob = launch(loginContext, CoroutineStart.LAZY) {
-            api.login(shardInfo = null, sessionManager = config.sessionManager)
+            api.login(shardInfo = null, sessionManager = config.sessionManager ?: DefaultSessionManager())
         }
         loginJob.invokeOnCompletion { loginContext.close() }
         loginJob.start()
@@ -75,7 +75,7 @@ object Discord {
         val config = APIConfig().apply(block)
         val api = APIImpl(config)
         runBlocking(context) {
-            api.login(shardInfo = null, sessionManager = config.sessionManager)
+            api.login(shardInfo = null, sessionManager = config.sessionManager ?: DefaultSessionManager())
         }
         return api
     }

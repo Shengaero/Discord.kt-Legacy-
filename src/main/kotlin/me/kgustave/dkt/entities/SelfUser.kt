@@ -18,6 +18,4 @@ package me.kgustave.dkt.entities
 /**
  * @author Kaidan Gustave
  */
-interface SelfUser : User {
-
-}
+interface SelfUser : User

@@ -1,5 +1,5 @@
 /*
- * Copyright 2018 Kaidan Gustave
+ * Copyright 2017 Kaidan Gustave
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -13,19 +13,16 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package me.kgustave.dkt.handlers.shard
+package me.kgustave.dkt.handlers.event
 
-import me.kgustave.dkt.API
-import me.kgustave.dkt.entities.SelfUser
-import me.kgustave.dkt.handlers.SessionManager
+import me.kgustave.dkt.entities.impl.APIImpl
+import me.kgustave.kson.KSONObject
 
 /**
  * @author Kaidan Gustave
  */
-interface ShardController {
-    val self: SelfUser
-    val sessionManager: SessionManager
-    val shards: List<API>
-
-    fun getShardById(id: Int): API
+class PresenceUpdateHandler(override val api: APIImpl): EventHandler(Type.PRESENCE_UPDATE) {
+    override fun handle(event: KSONObject, responseNumber: Long, rawKSON: KSONObject) {
+        TODO("not implemented") //To change body of created functions use File | Settings | File Templates.
+    }
 }

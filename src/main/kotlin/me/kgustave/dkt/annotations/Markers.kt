@@ -90,3 +90,14 @@ annotation class InitializeASAP
 @Target(AnnotationTarget.CLASS)
 @Retention(AnnotationRetention.SOURCE)
 annotation class InternalOnly
+
+/**
+ * Marks a class or interface as a generic event that should not be cited
+ * directly by a method in [ListenerAdapter][me.kgustave.dkt.hooks.ListenerAdapter].
+ *
+ * In this case, the correct method name would be "on**Generic**X**Event**"
+ * as opposed to "onX"
+ */
+@Target(AnnotationTarget.CLASS)
+@Retention(AnnotationRetention.SOURCE)
+annotation class GenericEvent

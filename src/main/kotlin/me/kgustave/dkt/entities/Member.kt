@@ -28,4 +28,5 @@ interface Member : PermissionHolder, Comparable<Member> {
     val username: String
     val nickname: String?
     val roles: List<Role>
+    val voiceState: GuildVoiceState
 }

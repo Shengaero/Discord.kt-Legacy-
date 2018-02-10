@@ -16,26 +16,34 @@
 @file:Suppress("Unused")
 package me.kgustave.dkt.util
 
-inline fun checkState(condition: Boolean, msg: () -> String) {
-    if(condition)
-        throw IllegalStateException(msg())
+// IllegalArgumentException
+
+/**
+ * Checks if a string is longer than the specified length,
+ * outputting a helpful error if it is.
+ *
+ * If the string is `null` this does nothing.
+ */
+fun requireNotLonger(string: String?, length: Int, name: String) {
+    string ?: return
+    require(string.length <= length) { "$name cannot be longer than $length characters" }
 }
 
-inline fun <reified T, reified R: T> T.checkCast(msg: () -> String): R {
-    if(this !is R)
-        throw IllegalStateException(msg())
-    return this
+/**
+ * Throws an exception if the provided string is blank.
+ *
+ * This is not the same as the string being empty, as this checks
+ * for whitespace as well.
+ */
+fun requireNotBlank(string: String, name: String) {
+    require(string.isNotBlank()) { "$name cannot be blank" }
 }
 
-inline fun <reified T> nonNullState(t: T?, msg: () -> String): T {
-    if(t == null)
-        throw IllegalStateException(msg())
-    return t
-}
+// UnsupportedOperationException
 
 inline fun doNotSupport(condition: Boolean, msg: () -> String) {
     if(condition)
-        throw UnsupportedOperationException(msg())
+        unsupported(msg)
 }
 
 inline fun unsupported(msg: () -> String): Nothing = throw UnsupportedOperationException(msg())

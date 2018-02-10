@@ -75,6 +75,9 @@ interface Guild : Snowflake, ChannelHolder {
     fun getMembersByNickname(name: String, ignoreCase: Boolean = false): List<Member>
     fun getMembersByAnyName(name: String, ignoreCase: Boolean = false): List<Member>
 
+    fun getRoleById(id: Long): Role?
+    fun getRolesByName(name: String, ignoreCase: Boolean = false): List<Role>
+
     /**
      * Leaves the [Guild].
      *
@@ -131,7 +134,7 @@ interface Guild : Snowflake, ChannelHolder {
         DISABLED("Don't scan any messages."),
         MEMBERS_WITHOUT_ROLES("Scan messages from members without a role."),
         ALL_MEMBERS("Scan messages sent by all members."),
-        UNKNOWN("Unknown content filter!");
+        UNKNOWN("Unknown contentBuilder filter!");
         companion object {
             fun typeOf(ordinal: Int): ExplicitContentFilter {
                 if(ordinal >= UNKNOWN.ordinal)

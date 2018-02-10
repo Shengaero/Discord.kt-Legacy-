@@ -18,4 +18,7 @@ package me.kgustave.dkt.entities
 /**
  * @author Kaidan Gustave
  */
-interface Webhook : Snowflake {}
+interface Webhook : User {
+    val guild: Guild
+    val channel: TextChannel
+}

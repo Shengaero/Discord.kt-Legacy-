@@ -28,6 +28,7 @@ class MemberImpl(override val api: API, override val guild: Guild, override val 
     internal val internalRoles = ArrayList<Role>()
 
     override var nickname: String? = null
+    override val voiceState: GuildVoiceState = GuildVoiceStateImpl(guild, this)
 
     override val name: String
         get() = nickname ?: username

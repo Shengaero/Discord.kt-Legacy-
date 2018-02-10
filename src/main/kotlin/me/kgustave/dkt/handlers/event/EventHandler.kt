@@ -24,9 +24,10 @@ import me.kgustave.kson.KSONObject
 abstract class EventHandler(val type: Type) {
     companion object {
         fun newEventHandlerMap(api: APIImpl) = mapOf(
-            Type.READY to ReadyHandler(api),
             Type.GUILD_CREATE to GuildCreateHandler(api),
-            Type.GUILD_MEMBERS_CHUNK to GuildMembersChunkHandler(api)
+            Type.GUILD_MEMBERS_CHUNK to GuildMembersChunkHandler(api),
+            Type.PRESENCE_UPDATE to PresenceUpdateHandler(api),
+            Type.READY to ReadyHandler(api)
         )
     }
 
@@ -44,9 +45,11 @@ abstract class EventHandler(val type: Type) {
     }
 
     enum class Type {
-        READY,
+        CHANNEL_CREATE,
         GUILD_CREATE,
-        GUILD_MEMBERS_CHUNK;
+        GUILD_MEMBERS_CHUNK,
+        PRESENCE_UPDATE,
+        READY;
 
         companion object {
             fun of(t: String): Type? = values().firstOrNull { it.name == t }

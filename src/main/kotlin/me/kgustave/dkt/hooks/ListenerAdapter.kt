@@ -19,6 +19,10 @@ import me.kgustave.dkt.events.DisconnectEvent
 import me.kgustave.dkt.events.Event
 import me.kgustave.dkt.events.ReadyEvent
 import me.kgustave.dkt.events.ShutdownEvent
+import me.kgustave.dkt.events.message.MessageEvent
+import me.kgustave.dkt.events.message.MessageReceivedEvent
+import me.kgustave.dkt.events.message.guild.GuildMessageReceivedEvent
+import me.kgustave.dkt.events.message.priv.PrivateMessageReceivedEvent
 
 /**
  * @since  1.0.0
@@ -26,14 +30,32 @@ import me.kgustave.dkt.events.ShutdownEvent
  */
 abstract class ListenerAdapter : EventListener {
     final override fun onEvent(event: Event) {
+        onGenericEvent(event)
         when(event) {
             is ReadyEvent -> onReady(event)
             is DisconnectEvent -> onDisconnect(event)
             is ShutdownEvent -> onShutdown(event)
+            is MessageEvent -> {
+                onGenericMessageEvent(event)
+                when(event) {
+                    is MessageReceivedEvent -> {
+                        onMessageReceived(event)
+                        when(event) {
+                            is GuildMessageReceivedEvent -> onGuildMessageReceived(event)
+                            is PrivateMessageReceivedEvent -> onPrivateMessageReceived(event)
+                        }
+                    }
+                }
+            }
         }
     }
 
+    open fun onGenericEvent(event: Event) {}
     open fun onReady(event: ReadyEvent) {}
     open fun onDisconnect(event: DisconnectEvent) {}
     open fun onShutdown(event: ShutdownEvent) {}
+    open fun onGenericMessageEvent(event: MessageEvent) {}
+    open fun onMessageReceived(event: MessageReceivedEvent) {}
+    open fun onGuildMessageReceived(event: GuildMessageReceivedEvent) {}
+    open fun onPrivateMessageReceived(event: PrivateMessageReceivedEvent) {}
 }

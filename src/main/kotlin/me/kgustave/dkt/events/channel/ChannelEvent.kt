@@ -1,5 +1,5 @@
 /*
- * Copyright 2018 Kaidan Gustave
+ * Copyright 2017 Kaidan Gustave
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -13,19 +13,18 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package me.kgustave.dkt.handlers.shard
+package me.kgustave.dkt.events.channel
 
-import me.kgustave.dkt.API
-import me.kgustave.dkt.entities.SelfUser
-import me.kgustave.dkt.handlers.SessionManager
+import me.kgustave.dkt.entities.Channel
+import me.kgustave.dkt.entities.Guild
+import me.kgustave.dkt.events.Event
 
 /**
  * @author Kaidan Gustave
  */
-interface ShardController {
-    val self: SelfUser
-    val sessionManager: SessionManager
-    val shards: List<API>
-
-    fun getShardById(id: Int): API
+interface ChannelEvent : Event {
+    val channel: Channel
+    val guild: Guild?
+    val type: Channel.Type
+        get() = channel.type
 }

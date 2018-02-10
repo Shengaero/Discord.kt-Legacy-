@@ -1,5 +1,5 @@
 /*
- * Copyright 2018 Kaidan Gustave
+ * Copyright 2017 Kaidan Gustave
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -13,19 +13,31 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package me.kgustave.dkt.handlers.shard
+package me.kgustave.dkt.entities.impl
 
 import me.kgustave.dkt.API
-import me.kgustave.dkt.entities.SelfUser
-import me.kgustave.dkt.handlers.SessionManager
+import me.kgustave.dkt.entities.*
 
 /**
  * @author Kaidan Gustave
  */
-interface ShardController {
-    val self: SelfUser
-    val sessionManager: SessionManager
-    val shards: List<API>
+class MemberPermissionOverrideImpl(
+    api: API,
+    channel: GuildChannel,
+    id: Long,
+    override val member: Member
+): AbstractPermissionOverrideImpl(api, channel, id), MemberPermissionOverride {
+    override val role: Role? = null
+}
 
-    fun getShardById(id: Int): API
+/**
+ * @author Kaidan Gustave
+ */
+class RolePermissionOverrideImpl(
+    api: API,
+    channel: GuildChannel,
+    id: Long,
+    override val role: Role
+): AbstractPermissionOverrideImpl(api, channel, id), RolePermissionOverride {
+    override val member: Member? = null
 }

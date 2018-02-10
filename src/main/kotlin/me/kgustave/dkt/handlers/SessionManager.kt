@@ -1,5 +1,5 @@
 /*
- * Copyright 2018 Kaidan Gustave
+ * Copyright 2017 Kaidan Gustave
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package me.kgustave.dkt.handlers.shard
+package me.kgustave.dkt.handlers
 
 import kotlinx.coroutines.experimental.*
 import me.kgustave.dkt.entities.impl.APIImpl
@@ -42,7 +42,7 @@ interface SessionManager {
     }
 
     class Default : SessionManager {
-        private val coroutineContext = newSingleThreadContext("ConnectionManager")
+        private val coroutineContext = newSingleThreadContext("SessionManager")
 
         @Volatile private var lock = false
         @Volatile private var queue: BlockingQueue<DiscordWebSocket> = LinkedBlockingQueue()
@@ -98,6 +98,7 @@ interface SessionManager {
 
         override fun stop() {
             coroutineContext.cancelChildren() // Make sure to cancel a child process if this is active.
+            coroutineContext.cancel()
             coroutineContext.close()
         }
     }

@@ -50,20 +50,20 @@ class MessagePromise(
 
     var nonce: String? = null
     var embed: Embed? = null
-        set(value) = TODO("Sending embeds is not implemented yet!")
     var tts: Boolean = false
 
     constructor(api: APIImpl, route: Route.FormattedRoute, message: Message): this(message.channel, api, route) {
         content.append(message.content)
-        // TODO embed = message.embeds[0]
+        embed = message.embeds[0]
     }
 
     fun isEmpty(): Boolean {
         return Message.contentEmpty(content) && (embed == null || embed!!.isEmpty() || !checkForEmbedPermission())
     }
 
-    inline fun embed(crossinline builder: Embed.Builder.() -> Unit): MessagePromise {
-        embed = Embed { builder() }
+    @MessageDsl
+    inline fun embed(builder: Embed.Builder.() -> Unit): MessagePromise {
+        this.embed = me.kgustave.dkt.entities.embed(builder)
         return this
     }
 
@@ -89,17 +89,12 @@ class MessagePromise(
 
     private fun getPayloadJSON(): KSONObject = kson {
         "embed" to getEmbedAsKSON()
-        "content" to content.takeUnless { Message.contentEmpty(it) }?.toString()
+        "contentBuilder" to content.takeUnless { Message.contentEmpty(it) }?.toString()
         "nonce" to nonce
         "tts" to tts
     }
 
-    private fun getEmbedAsKSON(): KSONObject? {
-        if(embed == null)
-            return null
-        return kson {
-        }
-    }
+    private fun getEmbedAsKSON(): KSONObject? = embed?.json
 
     private fun checkForEmbedPermission(): Boolean {
         if(channel !is TextChannel)

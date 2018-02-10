@@ -27,4 +27,6 @@ interface TextMessage : Message {
 /**
  * @author Kaidan Gustave
  */
-interface TextChannel : GuildChannel, MessageChannel, Mentionable, Comparable<TextChannel>
+interface TextChannel : GuildChannel, MessageChannel, Mentionable, Comparable<TextChannel> {
+    val topic: String?
+}

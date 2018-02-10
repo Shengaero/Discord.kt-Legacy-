@@ -15,6 +15,7 @@
  */
 package me.kgustave.dkt.entities.impl
 
+import me.kgustave.dkt.Discord
 import me.kgustave.dkt.entities.PrivateChannel
 import me.kgustave.dkt.entities.Snowflake
 import me.kgustave.dkt.entities.User
@@ -30,8 +31,8 @@ import me.kgustave.kson.kson
  */
 class UserImpl(override val id: Long, override val api: APIImpl) : User {
     companion object {
-        internal const val DEFAULT_AVY_EXT = "/embed/avatars/%s.png"
-        internal const val AVY_EXT = "/avatars/%d/%s.png"
+        internal const val DEFAULT_AVY_URL = "${Discord.CDN_URL}/embed/avatars/%s.png"
+        internal const val AVY_URL = "${Discord.CDN_URL}/avatars/%d/%s.png"
 
         internal val DEFAULT_AVATAR_HASHES = arrayOf(
             "6debd47ed13483642cf09e832ed0bc1b", // Blurple
@@ -56,11 +57,11 @@ class UserImpl(override val id: Long, override val api: APIImpl) : User {
     override val privateChannel: PrivateChannel
         get() = internalPrivateChannel ?: throw UnloadedPropertyException("Private channel has not been opened yet!")
     override val avatarUrl: String
-        get() = avatarId?.let { AVY_EXT.format(id, it) } ?: defaultAvatarUrl
+        get() = avatarId?.let { AVY_URL.format(id, it) } ?: defaultAvatarUrl
     override val defaultAvatarId: String
         get() = DEFAULT_AVATAR_HASHES[discriminator % DEFAULT_AVATAR_HASHES.size]
     override val defaultAvatarUrl: String
-        get() = DEFAULT_AVY_EXT.format(defaultAvatarId)
+        get() = DEFAULT_AVY_URL.format(defaultAvatarId)
 
     override fun openPrivateChannel(): RestPromise<PrivateChannel> {
         // We already have this channel opened
