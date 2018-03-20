@@ -48,7 +48,7 @@ class APIConfig {
     var activity: Activity? = null
     var afk = false
     var shouldAutoReconnect = true
-    var eventDispatcher: EventDispatcher = EventDispatcher.default
+    var eventDispatcher = EventDispatcher.DefaultEventDispatcher
     var corePoolSize = 2
     var initialReconnectDelay = 2
     var maxReconnectDelay = 900

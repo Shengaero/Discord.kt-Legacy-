@@ -16,8 +16,8 @@
 @file:Suppress("MemberVisibilityCanPrivate", "MemberVisibilityCanBePrivate", "Unused")
 package me.kgustave.dkt.requests
 
-import me.kgustave.kson.KSONObject
-import me.kgustave.kson.KSONTokener
+import me.kgustave.json.readJSArray
+import me.kgustave.json.readJSObject
 import okhttp3.Response
 import java.io.BufferedReader
 import java.io.InputStream
@@ -70,9 +70,9 @@ class RestResponse {
 
                 when(begin) {
                     '{'  -> // It's an object
-                        KSONObject(KSONTokener(reader))
+                        reader.readJSObject()
                     '['  -> // It's an array
-                        KSONObject(KSONTokener(reader))
+                        reader.readJSArray()
                     else -> // Something else
                         reader.lines().collect(Collectors.joining())
                 }
@@ -96,29 +96,26 @@ class RestResponse {
     }
 
     companion object {
-        val Response.validEncodedBody: InputStream?
-            get() {
-                val encoding = header("content-encoding", "")
-                if(encoding == "gzip")
-                    return body()?.let { GZIPInputStream(it.byteStream()) }
-                return body()?.byteStream()
-            }
+        val Response.validEncodedBody: InputStream? get() {
+            val encoding = header("content-encoding", "")
+            if(encoding == "gzip")
+                return body()?.let { GZIPInputStream(it.byteStream()) }
+            return body()?.byteStream()
+        }
 
         fun validEncodedBody(okResponse: Response): InputStream? = okResponse.validEncodedBody
 
-        fun rateLimit(retryAfter: Long, cfRays: Set<String>) = RestResponse(null, 429, "TOO MANY REQUESTS", retryAfter, cfRays)
+        fun rateLimit(retryAfter: Long, cfRays: Set<String>): RestResponse {
+            return RestResponse(null, 429, "TOO MANY REQUESTS", retryAfter, cfRays)
+        }
     }
 
-    inline val isOk
-        inline get() = code in 200 until 300
+    inline val isOk inline get() = code in 200 until 300
 
-    inline val isRateLimit
-        inline get() = code == 429 // TOO MANY REQUESTS
+    inline val isRateLimit inline get() = code == 429 // TOO MANY REQUESTS
 
-    inline val isError
-        inline get() = code == -1
+    inline val isError inline get() = code == -1
 
-    inline val isUnauthorized: Boolean
-        inline get() = code == 401
+    inline val isUnauthorized inline get() = code == 401
 }
 

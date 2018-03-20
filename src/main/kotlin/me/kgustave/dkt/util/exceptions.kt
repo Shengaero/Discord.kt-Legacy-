@@ -47,3 +47,19 @@ inline fun doNotSupport(condition: Boolean, msg: () -> String) {
 }
 
 inline fun unsupported(msg: () -> String): Nothing = throw UnsupportedOperationException(msg())
+
+// Other Exception Utilities
+
+inline fun <reified R> tryOrNull(block: () -> R): R? = try { block() } catch(t: Throwable) { null }
+inline fun ignored(block: () -> Unit) {
+    try { block() } catch(ignored: Throwable) {}
+}
+
+inline fun <reified T: Throwable> ignore(block: () -> Unit) {
+    try {
+        block()
+    } catch(t: Throwable) {
+        if(t is T) return
+        throw t
+    }
+}

@@ -20,7 +20,7 @@ import me.kgustave.dkt.API
 /**
  * Represents the most generic form of Event on discord.
  *
- * All events inherit this as their superclass.
+ * All events inherit this as their super-interface.
  *
  * @since  1.0
  * @author Kaidan Gustave

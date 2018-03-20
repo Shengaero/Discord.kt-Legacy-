@@ -16,6 +16,7 @@
 package me.kgustave.dkt.entities
 
 import me.kgustave.dkt.API
+import me.kgustave.dkt.entities.impl.InternalMessage
 import me.kgustave.dkt.requests.RestPromise
 import me.kgustave.dkt.requests.promises.MessagePromise
 
@@ -53,9 +54,9 @@ interface Message : Snowflake {
     val member: Member?
     val embeds: List<Embed>
     val attachments: List<Attachment>
-    val mentionedEmotes: List<Emote>
     val mentionedUsers: List<User>
-    val mentionedChannels: List<Channel>
+    val mentionedEmotes: List<Emote>
+    val mentionedChannels: List<TextChannel>
     val isWebhook: Boolean
 
     fun edit(text: String): MessagePromise
@@ -64,8 +65,17 @@ interface Message : Snowflake {
 
     fun delete(): RestPromise<Message>
 
-    class Builder {
-        // TODO Message.Builder
+    infix fun mentions(mentionable: Mentionable): Boolean
+
+
+    class Builder: MessageDslComponent<Message.Builder>() {
+        var embed: Embed? = null
+
+        inline fun embed(block: Embed.Builder.() -> Unit) {
+            val builder = Embed.Builder()
+            builder.block()
+            this.embed = Embed(builder)
+        }
     }
 
     data class Attachment(
@@ -83,13 +93,25 @@ interface Message : Snowflake {
             fun typeOf(type: Int): Message.Type = values().firstOrNull { it.type == type } ?: UNKNOWN
         }
     }
+
+    enum class FormatSyntax(val syntax: String) {
+        ITALICS("*"),
+        BOLD("**"),
+        UNDERLINE("__"),
+        STRIKE_THROUGH("~~"),
+        CODE("`"),
+        CODE_BLOCK("```");
+
+        companion object {
+            fun surroundText(text: String, format: FormatSyntax): String {
+                return "${format.syntax}$text${format.syntax}"
+            }
+        }
+    }
 }
 
-/**
- * @author Kaidan Gustave
- */
-interface MessageChannel : Channel {
-    fun send(text: String): MessagePromise
-    fun send(embed: Embed): MessagePromise
-    fun send(message: Message): MessagePromise
+inline fun message(block: Message.Builder.() -> Unit): Message {
+    val builder = Message.Builder()
+    builder.block()
+    return InternalMessage(builder.content, builder.embed)
 }

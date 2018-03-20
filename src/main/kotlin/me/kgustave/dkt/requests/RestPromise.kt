@@ -16,12 +16,15 @@
 @file:Suppress("MemberVisibilityCanBePrivate", "unused")
 package me.kgustave.dkt.requests
 
-import kotlinx.coroutines.experimental.*
+import kotlinx.coroutines.experimental.CompletableDeferred
+import kotlinx.coroutines.experimental.CoroutineStart
+import kotlinx.coroutines.experimental.Deferred
+import kotlinx.coroutines.experimental.launch
 import me.kgustave.dkt.entities.impl.APIImpl
+import me.kgustave.dkt.util.HeaderMap
 import me.kgustave.dkt.util.createLogger
-import me.kgustave.kson.KSONObject
+import me.kgustave.json.JSObject
 import okhttp3.RequestBody
-import org.apache.commons.collections4.map.CaseInsensitiveMap
 import java.util.concurrent.CompletableFuture
 import kotlin.coroutines.experimental.suspendCoroutine
 
@@ -35,13 +38,12 @@ abstract class RestPromise<T>(protected val api: APIImpl, protected open val rou
             LOG.error("Promise could not be completed due to a failed execution: $it")
         }
 
-        inline fun <reified T> simple(
-            api: APIImpl, route: Route.FormattedRoute, body: KSONObject? = null,
-            headers: CaseInsensitiveMap<String, Any>? = null,
-            noinline block: suspend RestPromise<T>.(RestResponse, RestRequest<T>) -> Unit
+        fun <T> simple(
+            api: APIImpl, route: Route.FormattedRoute, body: JSObject? = null, headers: HeaderMap? = null,
+            block: suspend RestPromise<T>.(RestResponse, RestRequest<T>) -> Unit
         ): RestPromise<T> = object : RestPromise<T>(api, route) {
-            override val body: RequestBody? = body?.let { RequestBody.create(Requester.MEDIA_TYPE_JSON, it.toString()) }
-            override val headers: CaseInsensitiveMap<String, Any>? = headers
+            override val body = body?.let { RequestBody.create(Requester.MEDIA_TYPE_JSON, "$it") }
+            override val headers = headers
 
             override suspend fun handle(response: RestResponse, request: RestRequest<T>) {
                 block(response, request)
@@ -49,10 +51,8 @@ abstract class RestPromise<T>(protected val api: APIImpl, protected open val rou
         }
     }
 
-    protected open val body: RequestBody?
-        get() = null
-    protected open val headers: CaseInsensitiveMap<String, Any>?
-        get() = null
+    protected open val body: RequestBody? get() = null
+    protected open val headers: HeaderMap? get() = null
 
     infix fun then(then: (T) -> Unit) = promise(then, DEFAULT_FAILURE)
     infix fun catch(catch: (Throwable) -> Unit) = promise({}, catch)

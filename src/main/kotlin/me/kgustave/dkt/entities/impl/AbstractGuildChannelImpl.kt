@@ -34,8 +34,7 @@ abstract class AbstractGuildChannelImpl(
     override lateinit var name: String
     override var rawPosition = 0
 
-    override val category: Category?
-        get() = guild.getCategoryById(parentId)
+    override val category: Category? get() = guild.getCategoryById(parentId)
 
     override val permissionOverrides: List<PermissionOverride> get() {
         val members = internalMemberOverrides.values.toTypedArray()
@@ -43,11 +42,13 @@ abstract class AbstractGuildChannelImpl(
         return unmodifiableList(*members, *roles)
     }
 
-    override val memberPermissionOverrides: List<MemberPermissionOverride>
-        get() = unmodifiableList(*internalMemberOverrides.values.toTypedArray())
+    override val memberPermissionOverrides: List<MemberPermissionOverride> get() {
+        return unmodifiableList(*internalMemberOverrides.values.toTypedArray())
+    }
 
-    override val rolePermissionOverrides: List<RolePermissionOverride>
-        get() = unmodifiableList(*internalRoleOverrides.values.toTypedArray())
+    override val rolePermissionOverrides: List<RolePermissionOverride> get() {
+        return unmodifiableList(*internalRoleOverrides.values.toTypedArray())
+    }
 
 
     init {

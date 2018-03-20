@@ -22,7 +22,7 @@ import me.kgustave.dkt.events.guild.GuildJoinEvent
 import me.kgustave.dkt.events.guild.UnavailableGuildJoinEvent
 import me.kgustave.dkt.handlers.EventCache
 import me.kgustave.dkt.util.snowflake
-import me.kgustave.kson.KSONObject
+import me.kgustave.json.JSObject
 
 /**
  * @author Kaidan Gustave
@@ -30,9 +30,9 @@ import me.kgustave.kson.KSONObject
 class GuildCreateHandler(override val api: APIImpl): EventHandler(Type.GUILD_CREATE) {
     private val readyHandler get() = api.websocket.handlers[Type.READY] as ReadyHandler
 
-    override fun handle(event: KSONObject, responseNumber: Long, rawKSON: KSONObject) {
+    override fun handle(event: JSObject, responseNumber: Long, rawKSON: JSObject) {
         val id = snowflake(event["id"])
-        val guildCreated = api.internalGuildCache.entityMap[id] as? GuildImpl
+        val guildCreated = api.guildMap[id] as? GuildImpl
         val wasUnavailable = guildCreated?.unavailable
 
         api.entityBuilder.createGuild(event) { guild ->

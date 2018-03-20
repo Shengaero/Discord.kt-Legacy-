@@ -19,16 +19,19 @@ import me.kgustave.dkt.Discord
 import java.time.OffsetDateTime
 import java.util.*
 
+private val ENUM_SPLIT_REGEX = Regex("_+")
 const val TIMESTAMP_OFFSET = 22
 
-val Long.toCreationTime: OffsetDateTime
-    get() = Calendar.getInstance(TimeZone.getTimeZone("GMT")).let {
+val Long.toCreationTime: OffsetDateTime get() {
+    Calendar.getInstance(TimeZone.getTimeZone("GMT")).let {
         it.timeInMillis = (this ushr TIMESTAMP_OFFSET) + Discord.EPOCH
-        OffsetDateTime.ofInstant(it.toInstant(), it.timeZone.toZoneId())
+        return OffsetDateTime.ofInstant(it.toInstant(), it.timeZone.toZoneId())
     }
+}
 
-val Enum<*>.niceName: String
-    get() = name.split(Regex("_+")).joinToString(separator = " ") { "${it[0]}${it.substring(1)}" }
+val <E: Enum<E>> E.niceName: String get() {
+    return name.split(ENUM_SPLIT_REGEX).joinToString(" ") { "${it[0]}${it.substring(1)}" }
+}
 
 inline fun <reified T> Array<out T?>.toStringArray(): Array<String> = Array(size) { this[it].toString() }
 
@@ -41,7 +44,8 @@ inline fun <reified T> Array<out T?>.toStringArray(): Array<String> = Array(size
  *
  * @param any Either a [String] or [Long], anything else will throw an [IllegalStateException]
  */
-fun snowflake(any: Any): Long {
+@PublishedApi
+internal fun snowflake(any: Any?): Long {
     return when(any) {
         is String -> {
             try {

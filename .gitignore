@@ -1,3 +1,14 @@
+### Gradle Files ###
+/.gradle/
+/build/
+
+# Make sure to commit necessary gradle files
+!/gradle/
+!gradle.properties
+!build.gradle
+!gradlew
+!gradlew.bat
+
 ### Intellij Files ###
 /.idea/
 /out/
@@ -6,8 +17,8 @@
 *.iws
 
 ### Eclipse Files ###
-/bin/
 **/.settings/
+/bin/
 .classpath
 .project
 
@@ -16,10 +27,6 @@
 /target/
 *.nb-gradle-properties
 
-### Gradle Files ###
-/.gradle/
-/build/
-
 ### Configuration And Testing Files ###
 /src/test/
 *.json
@@ -27,6 +34,7 @@
 ### Image Files ###
 *.png
 *.jpg
+*.gif
 *.ico
 
 ### Other Files ###

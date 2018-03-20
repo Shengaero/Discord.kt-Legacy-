@@ -51,13 +51,12 @@ interface Guild : Snowflake, ChannelHolder {
     val voiceChannelCache: SnowflakeCache<VoiceChannel>
 
     val roles: List<Role>
-    val emotes: List<Emote>
+    val emotes: List<GuildEmote>
     val members: List<Member>
     val categories: List<Category>
 
     val self: Member
 
-    fun getChannelsByName(name: String, ignoreCase: Boolean = false): List<GuildChannel>
     fun getCategoriesByName(name: String, ignoreCase: Boolean = false): List<Category>
     fun getTextChannelsByName(name: String, ignoreCase: Boolean = false): List<TextChannel>
     fun getVoiceChannelsByName(name: String, ignoreCase: Boolean = false): List<VoiceChannel>
@@ -73,7 +72,6 @@ interface Guild : Snowflake, ChannelHolder {
     fun getMembersByName(name: String, ignoreCase: Boolean = false): List<Member>
     fun getMembersByUsername(name: String, ignoreCase: Boolean = false): List<Member>
     fun getMembersByNickname(name: String, ignoreCase: Boolean = false): List<Member>
-    fun getMembersByAnyName(name: String, ignoreCase: Boolean = false): List<Member>
 
     fun getRoleById(id: Long): Role?
     fun getRolesByName(name: String, ignoreCase: Boolean = false): List<Role>

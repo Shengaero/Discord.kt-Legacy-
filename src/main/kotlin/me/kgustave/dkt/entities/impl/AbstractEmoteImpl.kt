@@ -32,8 +32,12 @@ abstract class AbstractEmoteImpl(
     companion object {
         private const val EMOJI_CDN = "${Discord.CDN_URL}/emojis/"
     }
-    override val imageUrl: String
-        get() = "$EMOJI_CDN$id${if(isAnimated) ".gif" else ".png"}"
-    override val asMention: String
-        get() = "<${if(isAnimated) "a" else ""}:$name:$id>"
+
+    override val imageUrl: String get() {
+        return "$EMOJI_CDN$id${if(isAnimated) ".gif" else ".png"}"
+    }
+
+    override val asMention: String get() {
+        return "<${if(isAnimated) "a" else ""}:$name:$id>"
+    }
 }

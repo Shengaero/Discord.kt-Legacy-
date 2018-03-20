@@ -30,12 +30,9 @@ class MemberImpl(override val api: API, override val guild: Guild, override val 
     override var nickname: String? = null
     override val voiceState: GuildVoiceState = GuildVoiceStateImpl(guild, this)
 
-    override val name: String
-        get() = nickname ?: username
-    override val username: String
-        get() = user.name
-    override val roles: List<Role>
-        get() = unmodifiableList(internalRoles.sortedWith(Comparator.reverseOrder()))
+    override val name: String get() = nickname ?: username
+    override val username: String get() = user.name
+    override val roles: List<Role> get() = unmodifiableList(internalRoles.sortedWith(Comparator.reverseOrder()))
     override val permissions: List<Permission> get() {
         val dest = ArrayList<Permission>()
         internalRoles.forEach {
@@ -45,6 +42,12 @@ class MemberImpl(override val api: API, override val guild: Guild, override val 
             }
         }
         return dest
+    }
+    override val asMention: String get() {
+        if(nickname === null) {
+            return "<@?${user.id}>"
+        }
+        return user.asMention
     }
 
     override fun canInteract(member: Member): Boolean {

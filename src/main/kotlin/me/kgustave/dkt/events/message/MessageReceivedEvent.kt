@@ -22,20 +22,17 @@ import me.kgustave.dkt.entities.*
  * @author Kaidan Gustave
  */
 interface MessageReceivedEvent : MessageEvent {
-
     // General
-
     val message: Message
 
+    val author: User
+        get() = message.author
     override val messageId: Long
         get() = message.id
     override val channel: MessageChannel
         get() = message.channel
-    val author: User
-        get() = message.author
 
     // Text
-
     val textMessage: TextMessage?
         get() = message as? TextMessage
     val textChannel: TextChannel?
@@ -46,14 +43,12 @@ interface MessageReceivedEvent : MessageEvent {
         get() = guild?.getMember(author)
 
     // Private
-
     val privateMessage: PrivateMessage?
         get() = message as? PrivateMessage
     val privateChannel: PrivateChannel?
         get() = privateMessage?.channel
 
     // Misc
-
     val isWebhook: Boolean
         get() = message.isWebhook
 }

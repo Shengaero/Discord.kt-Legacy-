@@ -32,10 +32,13 @@ import kotlin.coroutines.experimental.CoroutineContext
 object Discord {
     /** The first second of January 1, 2015, the moment Discord was officially live */
     const val EPOCH = 1420070400000L
+
     /** The base URL for Discord: `https://discordapp.com` */
     const val BASE_URL = "https://discordapp.com"
+
     /** The base API URL for Discord: `https://discordapp.com/api` */
     const val API_URL = "$BASE_URL/api"
+
     /** The base CDN URL for Discord: `https://cdn.discordapp.com` */
     const val CDN_URL = "https://cdn.discordapp.com"
 
@@ -81,19 +84,21 @@ object Discord {
     }
 
     object KtInfo {
-        /** Kotlincord's GitHub repository link. */
-        const val GITHUB = "https://github.com/TheMonitorLizard/Kotlincord/"
+        private const val DEV_VERSION = "DEV"
 
-        /** Kotlincord's official release version. */
-        val VERSION: String = this::class.java.`package`.implementationVersion ?: "DEV"
+        /** Discord.kt's GitHub repository link. */
+        const val GITHUB = "https://github.com/TheMonitorLizard/Discord.kt/"
 
-        /** Kotlincord's full version. */
-        val FULL_VERSION = if(VERSION != "DEV") "${VERSION}_ALPHA" else "DEV"
-
-        /** The version of REST Kotlincord uses. */
+        /** The version of REST Discord.kt uses. */
         const val REST_VERSION = 6
 
-        /** The Discord Gateway version Kotlincord targets. */
+        /** The Discord Gateway version Discord.kt targets. */
         const val GATEWAY_VERSION = 6
+
+        /** Discord.kt's official release version. */
+        val VERSION = this::class.java.`package`.implementationVersion ?: DEV_VERSION
+
+        /** Discord.kt's full version. */
+        val FULL_VERSION = if(VERSION != DEV_VERSION) "${VERSION}_ALPHA" else DEV_VERSION
     }
 }

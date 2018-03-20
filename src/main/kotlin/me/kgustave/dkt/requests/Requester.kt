@@ -22,12 +22,9 @@ import me.kgustave.dkt.Discord
 import me.kgustave.dkt.entities.impl.APIImpl
 import me.kgustave.dkt.requests.ratelimits.GlobalShardRateLimiter
 import me.kgustave.dkt.requests.ratelimits.RateLimiter
-import me.kgustave.dkt.util.await
-import me.kgustave.dkt.util.createLogger
-import me.kgustave.dkt.util.method
-import me.kgustave.dkt.util.set
-import me.kgustave.dkt.util.request
+import me.kgustave.dkt.util.*
 import okhttp3.MediaType
+import okhttp3.Request
 import okhttp3.RequestBody
 import okhttp3.Response
 import java.net.SocketTimeoutException
@@ -38,30 +35,26 @@ import java.util.concurrent.TimeUnit
  */
 class Requester constructor(internal val api: APIImpl) {
     companion object {
-        val DEFAULT_BODY = RequestBody.create(null, byteArrayOf())!!
-        val LOGGER = createLogger(Requester::class)
-        val MEDIA_TYPE_JSON = MediaType.parse("application/json; charset=utf-8")!!
+        const val ENCODING = "gzip"
+        val USER_AGENT = "DiscordBot (${Discord.KtInfo.GITHUB}, ${Discord.KtInfo.VERSION})"
+        val LOG = createLogger(Requester::class)
 
-        @JvmStatic val USER_AGENT = "DiscordBot (${Discord.KtInfo.GITHUB}, ${Discord.KtInfo.VERSION})"
+        val DEFAULT_BODY = RequestBody.create(null, byteArrayOf())!!
+        val MEDIA_TYPE_JSON = MediaType.parse("application/json;charset=utf-8")!!
     }
 
     private val rateLimiter = RateLimiter(this, 5, GlobalShardRateLimiter())
     private val httpClient = api.httpClientBuilder.build()
 
     fun <T> queue(request: RestRequest<T>): Deferred<T> {
-        if(rateLimiter.isShutdown)
-            throw IllegalStateException("Attempted to submit a request when the RateLimiter was shutdown!")
+        check(!rateLimiter.isShutdown) { "Attempted to submit a request when the RateLimiter was shutdown!" }
         rateLimiter.queue(request)
         return request.deferred
     }
 
-    fun shutdown(delay: Long, unit: TimeUnit) {
-        rateLimiter.shutdown(delay, unit)
-    }
+    fun shutdown(delay: Long, unit: TimeUnit) = rateLimiter.shutdown(delay, unit)
 
-    fun shutdownNow() {
-        rateLimiter.shutdownNow()
-    }
+    fun shutdownNow() = rateLimiter.shutdownNow()
 
     // Returns true if we should retry the request, false if we should not
     // Note: not retrying does not indicate the request succeeded in any way
@@ -97,64 +90,66 @@ class Requester constructor(internal val api: APIImpl) {
                     break // We succeeded in our request
 
                 attempt++
-                LOGGER.debug("Request (attempt ${attempt + 1}) ${request.route} was unsuccessful. Retrying...")
+                LOG.debug("Request (attempt ${attempt + 1}) ${request.route} was unsuccessful. Retrying...")
 
                 // Wait a bit
                 delay(50L * attempt)
             } while(attempt < 3 && successful!!.code() >= 500)
 
-            successful!! // Assert past here that it's not null
+            // Assert past here that it's not null
+            successful = requireNotNull(successful) { "Successful request was null after making $attempt attempts?!" }
 
             // At this point we've attempted 4 times with no success
             if(successful.code() >= 500) {
-                LOGGER.debug("Attempted request ${request.route} 4 times without success.\n" +
-                             "This could be due to Discord API issue such as an outage. If " +
-                             "you see this consistently for a long time, you should contact " +
-                             "the library maintainers!")
+                LOG.debug("Attempted request ${request.route} 4 times without success.\n" +
+                          "This could be due to Discord API issue such as an outage. If " +
+                          "you see this consistently for a long time, you should contact " +
+                          "the library maintainers!")
                 return false
             }
 
             val retryAfter = rateLimiter.handleResponse(request.route, successful)
 
             if(rays.isNotEmpty())
-                LOGGER.debug("Received a response with the following CloudFlare rays: [${rays.joinToString()}]")
+                LOG.debug("Received a response with the following CloudFlare rays: [${rays.joinToString()}]")
 
             request.handle(RestResponse(successful, retryAfter ?: -1L, rays))
             return false
         } catch(e: SocketTimeoutException) {
             if(!retried) { // Try again
-                LOGGER.debug("Requester experienced a timeout, will retry again...")
+                LOG.debug("Requester experienced a timeout, will retry again...")
                 return true
             }
 
-            LOGGER.error("Requester experienced a timeout after retrying.")
+            LOG.error("Requester experienced a timeout after retrying.")
 
             request.handle(RestResponse(successful, e, rays))
             return false
         } catch(e: Exception) {
-            LOGGER.error("Requester experienced an exception while executing a request!", e)
+            LOG.error("Requester experienced an exception while executing a request!", e)
             request.handle(RestResponse(successful, e, rays))
             return false
         } finally {
             for(res in attempts) {
-                if(res == null)
+                if(res === null)
                     break
                 res.close()
             }
         }
     }
 
-    private fun createRequest(request: RestRequest<*>, route: Route.FormattedRoute) = request {
+    private fun createRequest(request: RestRequest<*>, route: Route.FormattedRoute): Request = request {
         url("${Route.BASE_URL}${route.formattedEndpoint}")
-        method(route.method, if(request.body == null && route.method.requiresBody) DEFAULT_BODY else request.body)
+        method(route.method, if(request.body === null && route.method.requiresBody) DEFAULT_BODY else request.body)
 
         this["user-agent"] = USER_AGENT
-        this["accept-encoding"] = "gzip"
+        this["accept-encoding"] = ENCODING
         this["authorization"] = "Bot ${api.token}"
 
         request.headers?.let {
-            for((key, value) in it)
-                this[key] = value.toString()
+            for((key, value) in it) {
+                this[key.toLowerCase()] = value.toString()
+            }
         }
     }
 }

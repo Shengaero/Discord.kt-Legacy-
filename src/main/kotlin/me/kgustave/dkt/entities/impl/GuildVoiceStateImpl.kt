@@ -34,10 +34,8 @@ data class GuildVoiceStateImpl(override val guild: Guild, override val member: M
     suppress        bool
     */
 
-    override val api: API
-        get() = guild.api
-    override val user: User
-        get() = member.user
+    override val api: API get() = guild.api
+    override val user: User get() = member.user
 
     override lateinit var channel: VoiceChannel
         internal set

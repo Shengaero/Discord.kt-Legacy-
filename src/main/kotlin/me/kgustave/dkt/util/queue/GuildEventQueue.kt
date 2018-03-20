@@ -18,7 +18,7 @@ package me.kgustave.dkt.util.queue
 
 import me.kgustave.dkt.entities.impl.APIImpl
 import me.kgustave.dkt.util.createLogger
-import me.kgustave.kson.KSONObject
+import me.kgustave.json.JSObject
 import java.util.*
 import kotlin.collections.HashMap
 import kotlin.collections.HashSet
@@ -41,7 +41,7 @@ class GuildEventQueue(private val api: APIImpl) {
         private val LOG = createLogger(GuildEventQueue::class)
     }
 
-    private val registeredQueues = HashMap<Long, Queue<KSONObject>>()
+    private val registeredQueues = HashMap<Long, Queue<JSObject>>()
     private val registered = HashSet<Long>()
 
     fun isRegistered(guildId: Long): Boolean = registered.contains(guildId)
@@ -67,7 +67,7 @@ class GuildEventQueue(private val api: APIImpl) {
         }
     }
 
-    fun queue(guildId: Long, event: KSONObject) {
+    fun queue(guildId: Long, event: JSObject) {
         if(isRegistered(guildId)) {
             LOG.debug("Queuing event for Guild (ID: $guildId): $event")
 

@@ -1,5 +1,5 @@
 /*
- * Copyright 2018 Kaidan Gustave
+ * Copyright 2017 Kaidan Gustave
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -13,20 +13,9 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package me.kgustave.dkt.entities
+package me.kgustave.dkt.events.channel
 
 /**
  * @author Kaidan Gustave
  */
-interface TextMessage : Message {
-    val guild: Guild
-    override val member: Member
-    override val channel: TextChannel
-}
-
-/**
- * @author Kaidan Gustave
- */
-interface TextChannel : GuildChannel, MessageChannel, Mentionable, Comparable<TextChannel> {
-    val topic: String?
-}
+interface GuildChannelDeleteEvent : GuildChannelEvent

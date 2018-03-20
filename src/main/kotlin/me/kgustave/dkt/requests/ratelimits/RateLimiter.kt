@@ -19,15 +19,15 @@ package me.kgustave.dkt.requests.ratelimits
 import kotlinx.coroutines.experimental.*
 import me.kgustave.dkt.requests.Requester
 import me.kgustave.dkt.requests.RestRequest
-import me.kgustave.dkt.requests.RestResponse
+import me.kgustave.dkt.requests.RestResponse.Companion.validEncodedBody
 import me.kgustave.dkt.requests.Route
+import me.kgustave.dkt.util.createLogger
 import me.kgustave.dkt.util.currentTime
-import me.kgustave.kson.KSONObject
-import me.kgustave.kson.KSONTokener
+import me.kgustave.json.readJSObject
 import okhttp3.Headers
 import okhttp3.Response
 import java.time.OffsetDateTime
-import java.time.format.DateTimeFormatter
+import java.time.format.DateTimeFormatter.RFC_1123_DATE_TIME
 import java.util.concurrent.RejectedExecutionException
 import java.util.concurrent.ScheduledThreadPoolExecutor
 import java.util.concurrent.ThreadFactory
@@ -43,6 +43,7 @@ import kotlin.math.max
 class RateLimiter(private val requester: Requester, poolSize: Int, global: GlobalShardRateLimiter) {
     companion object {
         private const val DEFAULT_OFFSET = -1L
+        private val LOG = createLogger(RateLimiter::class)
     }
 
     /*volatile*/ private var global: Long by global
@@ -53,24 +54,24 @@ class RateLimiter(private val requester: Requester, poolSize: Int, global: Globa
     private val buckets = mutableMapOf<String, Bucket>()
     private val running = mutableMapOf<Bucket, Job>()
 
-    val isShutdown: Boolean
-        get() = pool.isShutdown
-
     // If this is -1L, it means we haven't initialized it yet
     var offset = DEFAULT_OFFSET
 
-    inline val time: Long
-        inline get() = currentTime + max(offset, 0L)
+    val isShutdown: Boolean get() = pool.isShutdown
+    val time: Long get() = currentTime + max(offset, 0L)
 
     fun <T> queue(request: RestRequest<T>) {
-        check()
-        val bucket = getBucket(request.route)
+        if(isShutdown || shuttingDown)
+            throw RejectedExecutionException("Cannot queue requests while RateLimiter is closing or shutdown!")
+
+        val bucket = bucket(request.route)
         synchronized(bucket) {
-            val isRunning = synchronized(bucket.queue) isRunning@ {
-                val r = bucket.queue.isNotEmpty()
-                bucket.queue.add(request)
-                return@isRunning r
+            val isRunning = synchronized(bucket.queue) x@ {
+                bucket.queue.isNotEmpty().also {
+                    bucket.queue += request
+                }
             }
+
             if(!isRunning) {
                 running[bucket] = start(bucket, context)
             }
@@ -78,7 +79,7 @@ class RateLimiter(private val requester: Requester, poolSize: Int, global: Globa
     }
 
     fun getRateLimitFor(route: Route.FormattedRoute): Long {
-        val bucket = getBucket(route)
+        val bucket = bucket(route)
         synchronized(bucket) {
             if(global > 0) {
                 if(time > global) {
@@ -103,26 +104,18 @@ class RateLimiter(private val requester: Requester, poolSize: Int, global: Globa
         }
     }
 
-    private fun getBucket(route: Route.FormattedRoute): Bucket {
-        return synchronized(buckets) {
-            buckets[route.rateLimitEndpoint] ?: Bucket(route).also {
-                buckets[route.rateLimitEndpoint] = it
-            }
-        }
-    }
-
     fun handleResponse(route: Route.FormattedRoute, res: Response): Long? {
-        val bucket = getBucket(route)
+        val bucket = bucket(route)
         synchronized(bucket) {
             val headers = res.headers()
 
             // We run this to give ourselves the proper offset from Discord's time.
             if(offset == DEFAULT_OFFSET) {
                 headers["Date"]?.let { date ->
-                    val dateTime = OffsetDateTime.parse(date, DateTimeFormatter.RFC_1123_DATE_TIME)
+                    val dateTime = OffsetDateTime.parse(date, RFC_1123_DATE_TIME)
                     offset = currentTime - dateTime.toInstant().toEpochMilli()
 
-                    Requester.LOGGER.debug("Set RateLimiter time offset to $offset ms")
+                    LOG.debug("Set RateLimiter time offset to $offset ms")
                 }
             }
 
@@ -130,17 +123,16 @@ class RateLimiter(private val requester: Requester, poolSize: Int, global: Globa
             // This is bad, but the best thing we can do now is respect
             // the API's guidelines and retry in a bit.
             if(res.code() == 429) {
-                val isGlobal = headers["X-RateLimit-Global"]?.toBoolean()
-                val retryAfter = headers["Retry-After"]?.takeIf { it.isNotEmpty() }?.toLong() ?:
-                                 RestResponse.validEncodedBody(res)?.use {
-                                     val rateLimitKSON = KSONObject(KSONTokener(it))
-                                     rateLimitKSON["retry_after"].toString()
-                                 }?.toLong() ?: 0L
+                val isGlobal = headers["X-RateLimit-Global"]?.toBoolean() == true
+                val retryHeader = headers["Retry-After"]?.takeIf(String::isNotEmpty)
+                val retryAfter = retryHeader?.toLong() ?: validEncodedBody(res)?.use {
+                    "${it.readJSObject()["retry_after"]}"
+                }?.toLong() ?: 0L
 
                 // Global ratelimit
-                if(isGlobal == true) {
+                if(isGlobal) {
                     // Set the global ratelimit
-                    Requester.LOGGER.debug("Encountered a global rate limit, locking up all queued requests...")
+                    LOG.debug("Encountered a global rate limit, locking up all queued requests...")
                     global = time + retryAfter
                 }
 
@@ -170,9 +162,12 @@ class RateLimiter(private val requester: Requester, poolSize: Int, global: Globa
         pool.shutdownNow()
     }
 
-    private fun check() {
-        if(isShutdown || shuttingDown)
-            throw RejectedExecutionException("Cannot queue requests while RateLimiter is closing or shutdown!")
+    private fun bucket(route: Route.FormattedRoute): Bucket {
+        return synchronized(buckets) {
+            buckets[route.rateLimitEndpoint] ?: Bucket(route).also {
+                buckets[route.rateLimitEndpoint] = it
+            }
+        }
     }
 
     private fun update(bucket: Bucket, headers: Headers) {
@@ -207,10 +202,10 @@ class RateLimiter(private val requester: Requester, poolSize: Int, global: Globa
                 bucket.remaining = it
             }
 
-            Requester.LOGGER.debug("Updated $bucket")
+            LOG.debug("Updated $bucket")
         } catch(e: NumberFormatException) {
             if(bucket.endpoint != "gateway" && bucket.endpoint != "users/@me") {
-                Requester.LOGGER.debug(
+                LOG.debug(
                     "Encountered an error updating bucket with headers:\n" +
                     "Route: ${bucket.endpoint}\n" +
                     "Headers: $headers"
@@ -224,8 +219,9 @@ class RateLimiter(private val requester: Requester, poolSize: Int, global: Globa
             delay(bucket)
             val request = bucket.queue.peek() ?: break
             if(requester.execute(request, retried = false)) {
+                // Failed, try again
                 if(!requester.execute(request, retried = true)) {
-                    Requester.LOGGER.warn("Failed to execute request after retrying")
+                    LOG.warn("Failed to execute request after retrying!")
                 }
             }
             bucket.queue.poll()
@@ -233,6 +229,10 @@ class RateLimiter(private val requester: Requester, poolSize: Int, global: Globa
 
         synchronized(buckets) {
             running.remove(bucket)
+
+            // The bucket is not empty.
+            // This could mean that the bucket was modified on another thread,
+            // and if that's the case it didn't start a new job.
             if(bucket.queue.isNotEmpty()) {
                 running[bucket] = start(bucket, coroutineContext)
             }

@@ -13,15 +13,15 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-@file:Suppress("MemberVisibilityCanBePrivate")
+@file:Suppress("MemberVisibilityCanBePrivate", "Unused")
 package me.kgustave.dkt.requests
 
 import kotlinx.coroutines.experimental.CompletableDeferred
 import me.kgustave.dkt.exceptions.ErrorResponseException
 import me.kgustave.dkt.exceptions.RateLimitedException
-import me.kgustave.kson.KSONObject
+import me.kgustave.dkt.util.HeaderMap
+import me.kgustave.json.JSObject
 import okhttp3.RequestBody
-import org.apache.commons.collections4.map.CaseInsensitiveMap
 
 /**
  * @author Kaidan Gustave
@@ -31,7 +31,7 @@ class RestRequest<T>(
     val route: Route.FormattedRoute,
     val deferred: CompletableDeferred<T>,
     internal val body: RequestBody? = null,
-    internal val headers: CaseInsensitiveMap<String, Any>? = null
+    internal val headers: HeaderMap? = null
 ) {
     var isCancelled = false
 
@@ -55,8 +55,13 @@ class RestRequest<T>(
         if(res.isRateLimit) {
             failure(RateLimitedException(route, res.retryAfter))
         } else {
-            failure(ErrorResponseException(ErrorResponse.from(res.obj as? KSONObject), res))
+            failure(ErrorResponseException(ErrorResponse.from(res.obj as? JSObject), res))
         }
+    }
+
+    fun cancel(cause: Throwable? = null) {
+        deferred.cancel(cause)
+        isCancelled = true
     }
 
     suspend fun handle(response: RestResponse) {

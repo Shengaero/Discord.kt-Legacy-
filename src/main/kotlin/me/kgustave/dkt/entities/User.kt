@@ -88,8 +88,7 @@ interface User : Mentionable, Snowflake {
 
     val privateChannel: PrivateChannel
 
-    override val asMention: String
-        get() = "<@$id>"
+    override val asMention: String get() = "<@$id>"
 
     fun openPrivateChannel(): RestPromise<PrivateChannel>
 }

@@ -16,6 +16,8 @@
 @file:Suppress("UNCHECKED_CAST", "Unused", "MemberVisibilityCanBePrivate", "NOTHING_TO_INLINE")
 package me.kgustave.dkt.entities
 
+import me.kgustave.dkt.entities.Message.FormatSyntax
+
 @[DslMarker MustBeDocumented Retention(AnnotationRetention.SOURCE)]
 @Target(AnnotationTarget.CLASS, AnnotationTarget.FUNCTION,
     AnnotationTarget.PROPERTY, AnnotationTarget.CONSTRUCTOR,
@@ -28,16 +30,17 @@ internal constructor(): Appendable {
     protected val contentBuilder = StringBuilder()
 
     @MessageDsl
-    val content: String
+    var content: String
         get() = contentBuilder.toString()
+        set(value) {
+            contentBuilder.setLength(0)
+            contentBuilder.append(value)
+        }
 
     @MessageDsl
     operator fun String.unaryPlus() {
         append(this)
     }
-
-    @MessageDsl
-    inline operator fun String.invoke(block: () -> String): String = "```$this\n${block()}```"
 
     @MessageDsl
     override fun append(csq: CharSequence): A {
@@ -54,6 +57,16 @@ internal constructor(): Appendable {
     @MessageDsl
     override fun append(c: Char): A {
         return append(c.toString())
+    }
+
+    @MessageDsl
+    inline operator fun String.invoke(block: () -> String): String {
+        return FormatSyntax.CODE_BLOCK("$this\n${block()}")
+    }
+
+    @MessageDsl
+    operator fun FormatSyntax.invoke(block: String): String {
+        return FormatSyntax.surroundText(block, this)
     }
 
     protected open fun check(csq: CharSequence) {}

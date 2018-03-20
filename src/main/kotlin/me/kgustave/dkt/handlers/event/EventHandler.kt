@@ -16,14 +16,15 @@
 package me.kgustave.dkt.handlers.event
 
 import me.kgustave.dkt.entities.impl.APIImpl
-import me.kgustave.kson.KSONObject
+import me.kgustave.json.JSObject
 
 /**
  * @author Kaidan Gustave
  */
 abstract class EventHandler(val type: Type) {
     companion object {
-        fun newEventHandlerMap(api: APIImpl) = mapOf(
+        internal fun newEventHandlerMap(api: APIImpl) = mapOf(
+            Type.CHANNEL_CREATE to ChannelCreateHandler(api),
             Type.GUILD_CREATE to GuildCreateHandler(api),
             Type.GUILD_MEMBERS_CHUNK to GuildMembersChunkHandler(api),
             Type.PRESENCE_UPDATE to PresenceUpdateHandler(api),
@@ -33,14 +34,14 @@ abstract class EventHandler(val type: Type) {
 
     protected abstract val api: APIImpl
 
-    fun handle(rawEvent: KSONObject) {
-        handle(rawEvent["d"] as KSONObject, api.responses, rawEvent)
+    fun handle(rawEvent: JSObject) {
+        handle(rawEvent.obj("d"), api.responses, rawEvent)
     }
 
-    abstract fun handle(event: KSONObject, responseNumber: Long, rawKSON: KSONObject)
+    abstract fun handle(event: JSObject, responseNumber: Long, rawKSON: JSObject)
 
     // Queues the event for a given guildId
-    protected fun queueEventForGuild(guildId: Long, rawKSON: KSONObject) {
+    protected fun queueEventForGuild(guildId: Long, rawKSON: JSObject) {
         api.guildQueue.queue(guildId, rawKSON)
     }
 

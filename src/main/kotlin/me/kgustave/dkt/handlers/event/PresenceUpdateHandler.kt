@@ -16,13 +16,12 @@
 package me.kgustave.dkt.handlers.event
 
 import me.kgustave.dkt.entities.impl.APIImpl
-import me.kgustave.kson.KSONObject
+import me.kgustave.json.JSObject
 
 /**
  * @author Kaidan Gustave
  */
 class PresenceUpdateHandler(override val api: APIImpl): EventHandler(Type.PRESENCE_UPDATE) {
-    override fun handle(event: KSONObject, responseNumber: Long, rawKSON: KSONObject) {
-        TODO("not implemented") //To change body of created functions use File | Settings | File Templates.
+    override fun handle(event: JSObject, responseNumber: Long, rawKSON: JSObject) {
     }
 }

@@ -28,8 +28,7 @@ abstract class AbstractPermissionOverrideImpl(
     override val channel: GuildChannel,
     protected val id: Long // Used for debugging mostly
 ): PermissionOverride {
-    override val guild: Guild
-        get() = channel.guild
+    override val guild: Guild get() = channel.guild
     override var allowedRaw: Long = 0L
     override var deniedRaw: Long = 0L
 }

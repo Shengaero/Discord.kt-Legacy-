@@ -22,5 +22,8 @@ import me.kgustave.dkt.requests.Route
  * @since  1.0.0
  * @author Kaidan Gustave
  */
-class RateLimitedException(val route: Route.FormattedRoute, val cooldown: Long, cause: Throwable? = null):
-    Exception("Encountered a RateLimit while processing a request ($route). Cooldown: $cooldown", cause)
+class RateLimitedException(
+    val route: Route.FormattedRoute,
+    val cooldown: Long,
+    cause: Throwable? = null
+): Exception("Encountered a RateLimit while processing a request ($route). Cooldown: $cooldown", cause)

@@ -20,6 +20,7 @@ import me.kgustave.dkt.entities.Guild
 import me.kgustave.dkt.entities.Member
 import me.kgustave.dkt.entities.TextChannel
 import me.kgustave.dkt.entities.TextMessage
+import me.kgustave.dkt.events.guild.GuildEvent
 import me.kgustave.dkt.events.message.MessageReceivedEvent
 
 /**
@@ -29,7 +30,7 @@ class GuildMessageReceivedEvent(
     override val api: API,
     override val responseNumber: Long,
     override val message: TextMessage
-): MessageReceivedEvent {
+): MessageReceivedEvent, GuildEvent {
     override val textMessage: TextMessage
         get() = message
     override val textChannel: TextChannel

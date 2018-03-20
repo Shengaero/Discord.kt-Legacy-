@@ -15,13 +15,10 @@
  */
 package me.kgustave.dkt.entities
 
-import me.kgustave.dkt.annotations.EntityTrait
-
 /**
  * @since  1.0.0
  * @author Kaidan Gustave
  */
-@EntityTrait
 interface Mentionable {
     val asMention: String
 

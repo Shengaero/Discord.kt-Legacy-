@@ -21,7 +21,6 @@ import kotlinx.coroutines.experimental.*
 import me.kgustave.dkt.API
 import me.kgustave.dkt.APIConfig
 import me.kgustave.dkt.entities.*
-import me.kgustave.dkt.entities.caching.SnowflakeCache
 import me.kgustave.dkt.entities.caching.impl.SnowflakeCacheImpl
 import me.kgustave.dkt.events.Event
 import me.kgustave.dkt.exceptions.RateLimitedException
@@ -32,14 +31,15 @@ import me.kgustave.dkt.handlers.shard.ShardController
 import me.kgustave.dkt.handlers.shard.impl.ShardControllerImpl
 import me.kgustave.dkt.hooks.EventDispatcher
 import me.kgustave.dkt.requests.DiscordWebSocket
-import me.kgustave.dkt.requests.RestPromise
 import me.kgustave.dkt.requests.Requester
+import me.kgustave.dkt.requests.RestPromise
 import me.kgustave.dkt.requests.Route
 import me.kgustave.dkt.requests.promises.PreCompletedPromise
 import me.kgustave.dkt.util.createLogger
+import me.kgustave.dkt.util.ignored
 import me.kgustave.dkt.util.queue.GuildEventQueue
 import me.kgustave.dkt.util.unsupported
-import me.kgustave.kson.KSONObject
+import me.kgustave.json.JSObject
 import java.util.concurrent.ScheduledThreadPoolExecutor
 import java.util.concurrent.ThreadFactory
 import java.util.concurrent.TimeUnit
@@ -56,6 +56,8 @@ class APIImpl
 @Throws(LoginException::class)
 constructor(config: APIConfig, internal val internalShardController: ShardControllerImpl? = null): API {
     companion object {
+        const val ASYNC_CONTEXT_NAME = "Discord API Async-Context"
+
         val LOG = createLogger(API::class)
     }
 
@@ -64,16 +66,17 @@ constructor(config: APIConfig, internal val internalShardController: ShardContro
     override var responses = 0L
     override var ping = 0L
 
-    override var shardInfo: API.ShardInfo? = null
-        private set
-
-    @Volatile override var status = API.Status.INITIALIZING
+    @Volatile
+    override var status = API.Status.INITIALIZING
         internal set(value) {
             synchronized(field) {
                 // TODO Add an event handle here
                 field = value
             }
         }
+
+    override var shardInfo: API.ShardInfo? = null
+        private set
 
     override var shouldAutoReconnect = config.shouldAutoReconnect
         set(value) {
@@ -94,118 +97,113 @@ constructor(config: APIConfig, internal val internalShardController: ShardContro
 
     override val token = config.token
 
+    override val userCache = SnowflakeCacheImpl(User::name)
+    override val guildCache = SnowflakeCacheImpl(Guild::name)
+    override val textChannelCache = SnowflakeCacheImpl(TextChannel::name)
+    override val voiceChannelCache = SnowflakeCacheImpl(VoiceChannel::name)
+    override val categoryCache = SnowflakeCacheImpl(Category::name)
+    override val privateChannelCache = SnowflakeCacheImpl<PrivateChannel>(null)
+
     // TODO Make this optional
     private val shutdownThread: Thread? = thread(false, name = "Kotlincord Shutdown Thread") { shutdown() }
     private val eventDispatcher: EventDispatcher = config.eventDispatcher
-    private val apiAsyncContext: CoroutineContext = config.apiAsyncContext ?:
-                                                    newSingleThreadContext("Kotlincord Async-Context")
+    private val apiAsyncContext: CoroutineContext = config.apiAsyncContext ?: newSingleThreadContext(ASYNC_CONTEXT_NAME)
 
-    // If the self-user is attached to the shard-controller we should
-    // take that one immediately and use it.
-    @Volatile internal var internalSelf: SelfUser? = null
+    // If the self-user is attached to the shard-controller
+    // we should take that one immediately and use it.
+    @Volatile internal var internalSelf: SelfUser? = internalShardController?.takeIf { it.selfUserIsInit }?.self
         get() {
-            if(internalShardController === null) return field
-            return with(internalShardController) {
+            return internalShardController?.run {
                 if(selfUserIsInit) self else field?.also { self = it }
-            }
+            } ?: field
         }
         set(value) {
             // Never set this field twice
-            if(field != null)
-                return
+            if(field !== null) return
 
             // Make sure this is not null
             val self = requireNotNull(value) { "Cannot set SelfUser to null!" }
 
             // Have not initialized self-user for the shard-controller yet
-            if(internalShardController?.selfUserIsInit == false) {
-                internalShardController.self = self
-            }
+            internalShardController?.run { if(!selfUserIsInit) this.self = self }
 
             // Set field
             field = self
         }
 
     internal lateinit var websocket: DiscordWebSocket private set
-    internal val internalUserCache = SnowflakeCacheImpl(User::name)
-    internal val internalGuildCache = SnowflakeCacheImpl(Guild::name)
-    internal val internalTextChannelCache = SnowflakeCacheImpl(TextChannel::name)
-    internal val internalVoiceChannelCache = SnowflakeCacheImpl(VoiceChannel::name)
-    internal val internalCategoryCache = SnowflakeCacheImpl(Category::name)
-    internal val internalPrivateChannelCache = SnowflakeCacheImpl<PrivateChannel>(null)
+    internal lateinit var gatewayUrl: String private set
     internal val guildQueue = GuildEventQueue(this)
     internal val eventCache = EventCache()
     internal val httpClientBuilder = config.httpClientBuilder
     internal val requester = Requester(this)
     internal val entityBuilder = EntityBuilder(this)
-    internal val pool = ScheduledThreadPoolExecutor(config.corePoolSize, APIThreadFactory())
-    internal val context = pool.asCoroutineDispatcher() // We use the same pool as a context.
+    internal val context = ScheduledThreadPoolExecutor(config.corePoolSize, APIThreadFactory()).asCoroutineDispatcher()
     internal val identifier = "Discord Bot${if(isSharded) " ($shardInfo)" else ""}"
-    internal val gatewayUrl: String = requestGatewayBot().complete().first
 
     init {
         // TODO ShardController setup
         config.listeners.forEach { eventDispatcher.addListener(it) }
     }
 
-    override val self: SelfUser
-        get() = internalSelf ?: throw UnloadedPropertyException("API has not loaded SelfUser yet!")
-    override val userCache: SnowflakeCache<User>
-        get() = internalUserCache
-    override val guildCache: SnowflakeCache<Guild>
-        get() = internalGuildCache
-    override val textChannelCache: SnowflakeCache<TextChannel>
-        get() = internalTextChannelCache
-    override val voiceChannelCache: SnowflakeCache<VoiceChannel>
-        get() = internalVoiceChannelCache
-    override val categoryCache: SnowflakeCache<Category>
-        get() = internalCategoryCache
-    override val privateChannelCache: SnowflakeCache<PrivateChannel>
-        get() = internalPrivateChannelCache
-    override val users: List<User>
-        get() = internalUserCache.toList()
-    override val guilds: List<Guild>
-        get() = internalGuildCache.toList()
-    override val textChannels: List<TextChannel>
-        get() = internalTextChannelCache.toList()
-    override val voiceChannels: List<VoiceChannel>
-        get() = internalVoiceChannelCache.toList()
-    override val categories: List<Category>
-        get() = internalCategoryCache.toList()
-    override val privateChannels: List<PrivateChannel>
-        get() = privateChannelCache.toList()
-    override val shardController: ShardController
-        get() = internalShardController ?: unsupported { "Cannot get ShardController for a non-sharded bot instance!" }
+    override val self: SelfUser get() {
+        return internalSelf ?: throw UnloadedPropertyException("API has not loaded SelfUser yet!")
+    }
+
+    override val shardController: ShardController get() {
+        return internalShardController ?: unsupported { "Cannot get ShardController for a non-sharded bot instance!" }
+    }
+
+    override val users: List<User> get() = userCache.toList()
+    override val guilds: List<Guild> get() = guildCache.toList()
+    override val textChannels: List<TextChannel> get() = textChannelCache.toList()
+    override val voiceChannels: List<VoiceChannel> get() = voiceChannelCache.toList()
+    override val categories: List<Category> get() = categoryCache.toList()
+    override val privateChannels: List<PrivateChannel> get() = privateChannelCache.toList()
+
+    override fun getUserById(id: Long): User? = userMap[id]
+    override fun getTextChannelById(id: Long): TextChannel? = textChannelMap[id]
+
+    internal val userMap get() = userCache.entityMap
+    internal val guildMap get() = guildCache.entityMap
+    internal val textChannelMap get() = textChannelCache.entityMap
+    internal val voiceChannelMap get() = voiceChannelCache.entityMap
+    internal val categoryMap get() = categoryCache.entityMap
+    internal val privateChannelMap get() = privateChannelCache.entityMap
 
     // TODO Add SessionManager configurability
     internal suspend fun login(shardInfo: API.ShardInfo?, sessionManager: SessionManager) {
+        require(token.isNotBlank()) { "Token provided was empty!" } // TODO Token Verification
+
+        // Get gateway information
+        val gatewayInfo = requestGatewayBot().await()
+
         this.shardInfo = shardInfo
+        this.gatewayUrl = gatewayInfo.first
+
+        // Attach the shutdown hook
+        shutdownThread?.let {
+            LOG.debug("Attaching shutdown hook")
+            Runtime.getRuntime().addShutdownHook(it)
+        }
 
         // We are now logging in
-        status = API.Status.LOGGING_IN
+        this.status = API.Status.LOGGING_IN
 
-        if(token.isEmpty())
-            throw IllegalArgumentException("Token provided was empty!") // TODO Token Verification
-
-        shutdownThread?.let { Runtime.getRuntime().addShutdownHook(it) }
-
-        if(shardInfo != null)
-            LOG.debug("Initializing WebSocket for $shardInfo")
-        else
-            LOG.debug("Initializing WebSocket...")
-
-        websocket = DiscordWebSocket(this, sessionManager)
-
-        return suspendCoroutine {
-            readyContinuation = it
+        // This suspends the login call until signalReady is fired.
+        suspendCoroutine<Unit> { cont ->
+            LOG.debug("Initializing WebSocket${shardInfo?.let { " for $shardInfo" } ?: ""}...")
+            this.readyContinuation = cont
+            try {
+                this.websocket = DiscordWebSocket(this, sessionManager)
+            } catch(t: Throwable) {
+                readyContinuation.resumeWithException(t)
+            }
         }
     }
 
-    internal fun signalReady(exception: Throwable? = null) {
-        if(exception != null)
-            readyContinuation.resumeWithException(exception)
-        else
-            readyContinuation.resume(Unit)
+    internal fun signalReady(error: Throwable? = null) {
+        return error?.let { readyContinuation.resumeWithException(it) } ?: readyContinuation.resume(Unit)
     }
 
     internal fun dispatchEvent(event: Event) {
@@ -214,19 +212,19 @@ constructor(config: APIConfig, internal val internalShardController: ShardContro
     }
 
     override fun findUserById(id: Long): RestPromise<User> {
-        internalUserCache[id]?.let { return PreCompletedPromise(this@APIImpl, it) }
+        userCache[id]?.let { return PreCompletedPromise(this@APIImpl, it) }
 
         return RestPromise.simple(this, Route.GetUser.format(id)) { res, req ->
             if(!res.isOk) {
                 req.error(res)
             } else {
-                req.succeed(entityBuilder.createUser(res.obj as KSONObject, shouldCache = false))
+                req.succeed(entityBuilder.createUser(res.obj as JSObject, shouldCache = false))
             }
         }
     }
 
     override fun async(block: suspend CoroutineScope.() -> Unit) {
-        async(apiAsyncContext) { block() }
+        async(apiAsyncContext, block = block)
     }
 
     override fun modifyPresence(block: Presence.() -> Unit) {
@@ -239,7 +237,7 @@ constructor(config: APIConfig, internal val internalShardController: ShardContro
             return
 
         // We are now shutting down
-        status = API.Status.SHUTTING_DOWN
+        this.status = API.Status.SHUTTING_DOWN
 
         // Make sure it's initialized, this shouldn't
         // ever happen, because the conditions that would
@@ -249,24 +247,23 @@ constructor(config: APIConfig, internal val internalShardController: ShardContro
         if(::websocket.isInitialized)
             websocket.shutdown()
         requester.shutdown(5, TimeUnit.SECONDS)
-        pool.setKeepAliveTime(5, TimeUnit.SECONDS)
-        pool.allowCoreThreadTimeOut(true)
+        context.cancel()
 
         if(apiAsyncContext is AutoCloseable) {
             apiAsyncContext.close()
         }
 
         // Remove the shutdown hook
-        shutdownThread?.let {
-            try { Runtime.getRuntime().removeShutdownHook(it) } catch(ignored: Throwable) {}
-        }
+        shutdownThread?.let { ignored { Runtime.getRuntime().removeShutdownHook(it) } }
 
         // We are now done shutting down
-        status = API.Status.SHUTDOWN
+        this.status = API.Status.SHUTDOWN
     }
 
     override fun toString(): String {
-        shardInfo?.apply { return "API Connection(url=\"$gatewayUrl\", shard_id=$shardId, shard_total=$shardTotal)" }
+        shardInfo?.apply {
+            return "API Connection(url=\"$gatewayUrl\", shard_id=$shardId, shard_total=$shardTotal)"
+        }
 
         return "API Connection(url=\"$gatewayUrl\")"
     }
@@ -274,26 +271,28 @@ constructor(config: APIConfig, internal val internalShardController: ShardContro
     private fun requestGatewayBot(): RestPromise<Pair<String, Int>> = RestPromise.simple(this, Route.GatewayBot.format()) { res, req ->
         when {
             res.isOk -> {
-                val kson = res.obj as KSONObject
-                req.succeed((kson["url"] as String) to (kson["shards"] as Int))
+                val json = res.obj as JSObject
+                req.succeed(json.string("url") to json.int("shards"))
             }
 
-            res.isRateLimit ->
+            res.isRateLimit -> {
                 req.failure(RateLimitedException(req.route, res.retryAfter))
+            }
 
-            res.isUnauthorized ->
+            res.isUnauthorized -> {
                 req.failure(LoginException("Attempted to login, but failed due to unauthorized access."))
+            }
 
-            else ->
-                req.failure(LoginException("Attempted to login, but failed due to an unknown error: ${res.code} - ${res.message}"))
+            else -> {
+                req.failure(LoginException("Attempted to login, but failed due to an unknown error: " +
+                                           "${res.code} - ${res.message}"))
+            }
         }
     }
 
     private inner class APIThreadFactory : ThreadFactory {
-        override fun newThread(r: Runnable): Thread {
-            return Thread(r, "$identifier API-Thread").also {
-                it.isDaemon = true
-            }
+        override fun newThread(r: Runnable): Thread = Thread(r, "$identifier API-Thread").also {
+            it.isDaemon = true
         }
     }
 }

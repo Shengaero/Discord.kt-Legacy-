@@ -33,15 +33,14 @@ import me.kgustave.dkt.util.queue.RawEventQueue
 import me.kgustave.dkt.util.createLogger
 import me.kgustave.dkt.util.currentTime
 import me.kgustave.dkt.util.snowflake
-import me.kgustave.kson.KSONArray
-import me.kgustave.kson.KSONException
-import me.kgustave.kson.KSONObject
-import me.kgustave.kson.kson
+import me.kgustave.json.JSArray
+import me.kgustave.json.JSObject
+import me.kgustave.json.exceptions.JSException
+import me.kgustave.json.jsonObject
+import me.kgustave.json.parseJsonObject
 import java.util.*
 import java.util.concurrent.RejectedExecutionException
 import java.util.concurrent.TimeUnit
-import kotlin.collections.HashSet
-import kotlin.concurrent.thread
 import kotlin.math.min
 
 /**
@@ -51,21 +50,22 @@ import kotlin.math.min
  * @author Kaidan Gustave
  */
 class DiscordWebSocket
-constructor(val api: APIImpl, private val sessionManager: SessionManager): WebSocketAdapter(), WebSocketListener {
+constructor(val api: APIImpl, private val sessionManager: SessionManager): WebSocketListener by WebSocketAdapter() {
     companion object {
         private val LOG = createLogger(DiscordWebSocket::class)
         const val IDENTIFY_DELAY = 5 // Seconds
     }
 
-    @Volatile private lateinit var lifeContext: ThreadPoolDispatcher
+    @Volatile private lateinit var rateLimit: Job
     @Volatile private lateinit var life: Job
-    @Volatile private var rateLimitThread: Thread? = null
     @Volatile private var connected = false
     @Volatile private var ratelimitReset = 0L
     @Volatile private var messagesSent = 0
     @Volatile private var hasCreatedRatelimitError = false
     @Volatile private var shutdown = false
 
+    private val rateLimitContext by lazy { newSingleThreadContext("WS-RateLimit Context") }
+    private val lifeContext by lazy { newSingleThreadContext("WS-Heartbeat Context") }
     private val token = "Bot ${api.token}"
     private val eventsToReplay = RawEventQueue()
     private val rateLimitQueue = LinkedList<String>()
@@ -82,19 +82,18 @@ constructor(val api: APIImpl, private val sessionManager: SessionManager): WebSo
 
     @Volatile var chunkingGuildMembers = false
 
+    var shouldReconnect = api.shouldAutoReconnect
+
     lateinit var websocket: WebSocket
         private set
 
     val handlers: Map<EventHandler.Type, EventHandler> = EventHandler.newEventHandlerMap(api)
     val traces: MutableSet<String> = HashSet()
     val rays: MutableSet<String> = HashSet()
-    val ready: Boolean
-        get() = !initiating
-
-    var shouldReconnect = api.shouldAutoReconnect
+    val ready: Boolean get() = !initiating
 
     init {
-        startRateLimitThread()
+        startRateLimit()
         connect()
     }
 
@@ -111,7 +110,7 @@ constructor(val api: APIImpl, private val sessionManager: SessionManager): WebSo
                 LOG.info("Finished Reloading!")
             }
         } else {
-            LOG.info("Finished resuming session!")
+            LOG.info("Finished Resuming Session!")
         }
 
         api.status = API.Status.CONNECTED
@@ -119,10 +118,10 @@ constructor(val api: APIImpl, private val sessionManager: SessionManager): WebSo
         LOG.debug("Replaying ${eventsToReplay.size} cached events...")
 
         // Replay missed events
-        var kson = eventsToReplay.poll()
-        while(kson !== null) {
-            dispatch(kson)
-            kson = eventsToReplay.poll()
+        var json = eventsToReplay.poll()
+        while(json !== null) {
+            dispatch(json)
+            json = eventsToReplay.poll()
         }
 
         LOG.debug("Finished replaying cached events!")
@@ -223,31 +222,34 @@ constructor(val api: APIImpl, private val sessionManager: SessionManager): WebSo
         else
             websocket.sendClose(code)
 
-        if(::life.isInitialized) life.cancel()
-        if(::lifeContext.isInitialized) lifeContext.close()
+        if(!shouldReconnect) {
+            val cancellation = CancellationException("Close Code $code${reason?.let { " - $it" } ?: ""}")
+            lifeContext.cancel(cancellation)
+            rateLimitContext.cancel(cancellation)
+        }
     }
 
-    fun updateTraces(kson: KSONArray, type: String, op: Int) {
-        LOG.debug("Received a _trace for $type (OP $op) with $kson")
+    fun updateTraces(json: JSArray, type: String, op: Int) {
+        LOG.debug("Received a _trace for $type (OP $op) with $json")
         traces.clear()
-        kson.forEach { it?.let { traces.add("$it") } }
+        json.forEach { it?.let { traces.add("$it") } }
     }
 
-    fun handle(events: Collection<KSONObject>) = events.forEach(::dispatch)
+    fun handle(events: Collection<JSObject>) = events.forEach(::dispatch)
 
-    fun queueChunkRequest(kson: KSONObject) {
-        chunkQueue.addLast("$kson")
+    fun queueChunkRequest(json: JSObject) {
+        chunkQueue.addLast("$json")
     }
 
     @Throws(Exception::class)
-    override fun onConnected(websocket: WebSocket, headers: MutableMap<String, MutableList<String>>) {
+    override fun onConnected(websocket: WebSocket, headers: Map<String, List<String>>) {
         api.status = API.Status.IDENTIFYING
         LOG.info("Connected to WebSocket!")
 
         headers["cf-ray"]?.let {
             if(it.isNotEmpty()) {
                 val ray = it[0]
-                this.rays += ray
+                rays += ray
                 LOG.debug("Received CloudFlare Ray: $ray")
             }
         }
@@ -258,10 +260,7 @@ constructor(val api: APIImpl, private val sessionManager: SessionManager): WebSo
         ratelimitReset = currentTime + 60000
 
         // null sessionId means we haven't sent IDENTIFY yet, or that our session has been invalidated
-        if(sessionId == null)
-            identify()
-        else
-            resume()
+        if(sessionId === null) identify() else resume()
     }
 
     @Throws(Exception::class)
@@ -299,7 +298,11 @@ constructor(val api: APIImpl, private val sessionManager: SessionManager): WebSo
         val closeImpliesReconnect = closeCode?.isReconnect == true
 
         if(!shouldReconnect || !closeImpliesReconnect) { // Do not reconnect
-            rateLimitThread?.interrupt()
+            if(::rateLimit.isInitialized) {
+                val cancellation = CancellationException("Close Code $rawCode${closeCode?.message?.let { " - $it" } ?: ""}")
+                lifeContext.cancel(cancellation)
+                rateLimitContext.cancel(cancellation)
+            }
 
             if(!closeImpliesReconnect) {
                 LOG.error("WebSocket was closed and cannot be recovered due to identification issues! $closeCode")
@@ -324,17 +327,17 @@ constructor(val api: APIImpl, private val sessionManager: SessionManager): WebSo
     @Throws(Exception::class)
     override fun onTextMessage(websocket: WebSocket, text: String) {
         LOG.trace("Received WS Message: $text")
-        val kson = KSONObject(text)
-        val op = kson["op"] as Int
+        val json = parseJsonObject(text)
+        val op = json.int("op")
 
-        val res = kson.opt<Long>("s")
+        val res = json.opt<Long>("s")
         // Response total
         if(res !== null) {
             api.responses = res
         }
 
         when(op) {
-            OpCode.DISPATCH -> dispatch(kson)
+            OpCode.DISPATCH -> dispatch(json)
 
             OpCode.HEARTBEAT -> {
                 LOG.debug("Received HEARTBEAT (OP 1). Sending response...")
@@ -349,7 +352,7 @@ constructor(val api: APIImpl, private val sessionManager: SessionManager): WebSo
             OpCode.INVALID_SESSION -> {
                 LOG.debug("Received INVALID_SESSION (OP 9). Now invalidating...")
                 sentIdentify = false
-                val shouldResume = kson["d"] as Boolean
+                val shouldResume = json["d"] as Boolean
                 val closeCode = if(shouldResume) 4000 else 1000
 
                 if(shouldResume) {
@@ -363,13 +366,13 @@ constructor(val api: APIImpl, private val sessionManager: SessionManager): WebSo
             }
 
             OpCode.HELLO -> {
-                LOG.debug("Received HELLO (OP 10): $kson")
+                LOG.debug("Received HELLO (OP 10): $json")
 
-                val d = kson["d"] as KSONObject
+                val d = json.obj("d")
                 startLife(d["heartbeat_interval"].toString().toLong())
 
-                if(d.containsKey("_trace")) {
-                    updateTraces(d["_trace"] as KSONArray, "HELLO", OpCode.HELLO)
+                if("_trace" in d) {
+                    updateTraces(d.array("_trace"), "HELLO", OpCode.HELLO)
                 }
             }
 
@@ -380,7 +383,7 @@ constructor(val api: APIImpl, private val sessionManager: SessionManager): WebSo
 
             // We opt 'd' here because if we get an OP that is unknown,
             // we have absolutely no idea what it might contain.
-            else -> LOG.warn("Got an unknown OP Code ($op):\n${kson.opt<Any>("d")}")
+            else -> LOG.warn("Got an unknown OP Code ($op):\n${json.opt<Any>("d")}")
         }
     }
 
@@ -403,44 +406,16 @@ constructor(val api: APIImpl, private val sessionManager: SessionManager): WebSo
         LOG.error("A WebSocket error occurred!", cause)
     }
 
-    private fun startLife(timeout: Long) {
-        if(!::lifeContext.isInitialized)
-            lifeContext = newSingleThreadContext("WS-Heartbeat Context")
-
-        life = launch(lifeContext, start = CoroutineStart.LAZY) {
-            LOG.debug("Starting heartbeat at interval: ${timeout}ms")
-            while(connected) {
-                try {
-                    sendHeartbeat()
-                    delay(timeout, TimeUnit.MILLISECONDS)
-                } catch(e: Exception) {
-                    LOG.debug("Heartbeat thread was interrupted")
-                    break
-                }
-            }
-        }
-
-        life.invokeOnCompletion(onCancelling = true) {
-            if(it !== null) {
-                handleCallbackError(websocket, it)
-                startLife(timeout)
-            }
-        }
-
-        life.start()
-    }
-
-    private fun startRateLimitThread() {
-        rateLimitThread = thread(name = "WS-RateLimit Thread", start = false, isDaemon = true) {
+    private fun startRateLimit() {
+        rateLimit = launch(rateLimitContext, start = CoroutineStart.LAZY) {
             var needRatelimit: Boolean
             var attemptedToSend: Boolean
 
-            // While this thread is running uninterrupted
-            while(!Thread.currentThread().isInterrupted) {
+            while(!rateLimit.isCancelled) {
                 try {
                     // Wait until sending identify
                     if(!sentIdentify) {
-                        Thread.sleep(500)
+                        delay(500)
                         continue
                     }
 
@@ -464,25 +439,51 @@ constructor(val api: APIImpl, private val sessionManager: SessionManager): WebSo
                         }
                     }
 
-                    if(needRatelimit || !attemptedToSend)
-                        Thread.sleep(1000)
-
-                } catch(e: InterruptedException) {
+                    if(needRatelimit || !attemptedToSend) {
+                        delay(1000)
+                    }
+                    Thread.sleep(1)
+                } catch(e: CancellationException) {
                     // If we are interrupted this more than likely mean that the WebSocket disconnected mid send.
                     LOG.debug("WebSocket sending thread experienced an interruption. " +
                               "This is most likely the API disconnecting from the WebSocket.")
-                    break // Sending thread ends
+                    break
                 }
             }
         }
 
-        rateLimitThread?.setUncaughtExceptionHandler { _, e ->
-            handleCallbackError(websocket, e)
-            startRateLimitThread()
+        rateLimit.invokeOnCompletion { e ->
+            e?.let { handleCallbackError(websocket, e) }
+            if(shouldReconnect) {
+                startRateLimit()
+            }
         }
 
-        // Note this shouldn't be null here
-        rateLimitThread?.start()
+        rateLimit.start()
+    }
+
+    private fun startLife(timeout: Long) {
+        life = launch(lifeContext, start = CoroutineStart.LAZY) {
+            LOG.debug("Starting heartbeat at interval: ${timeout}ms")
+            while(connected) {
+                try {
+                    sendHeartbeat()
+                    delay(timeout, TimeUnit.MILLISECONDS)
+                } catch(e: Exception) {
+                    LOG.debug("Heartbeat thread was interrupted")
+                    break
+                }
+            }
+        }
+
+        life.invokeOnCompletion(onCancelling = true) {
+            if(it !== null) {
+                handleCallbackError(websocket, it)
+                startLife(timeout)
+            }
+        }
+
+        life.start()
     }
 
     private fun invalidate() {
@@ -500,28 +501,29 @@ constructor(val api: APIImpl, private val sessionManager: SessionManager): WebSo
 
         // Clear our entity caches since we will need to
         // re-populate them when we get a proper RESUME
-        api.internalUserCache.entityMap.clear()
-        api.internalGuildCache.entityMap.clear()
-        api.internalTextChannelCache.entityMap.clear()
-        api.internalVoiceChannelCache.entityMap.clear()
-        api.internalPrivateChannelCache.entityMap.clear()
+        api.userMap.clear()
+        api.guildMap.clear()
+        api.textChannelMap.clear()
+        api.voiceChannelMap.clear()
+        api.categoryMap.clear()
+        api.privateChannelMap.clear()
 
         // Clear the GuildQueue and EventCaches
         api.guildQueue.clear()
         api.eventCache.clear()
     }
 
-    private fun dispatch(kson: KSONObject) {
-        var type = (kson["t"] as String).toUpperCase() // 't' should never be null if it's DISPATCH
+    private fun dispatch(json: JSObject) {
+        var type = json.string("t").toUpperCase() // 't' should never be null if it's DISPATCH
 
         if(type == "GUILD_MEMBER_ADD") {
             val gmcHandler = handlers[EventHandler.Type.GUILD_MEMBERS_CHUNK] as GuildMembersChunkHandler
-            gmcHandler.addExpectedGuildMembers(snowflake((kson["d"] as KSONObject)["guild_id"]), 1)
+            gmcHandler.addExpectedGuildMembers(snowflake(json.obj("d")["guild_id"]), 1)
         }
 
         if(type == "GUILD_MEMBER_REMOVE") {
             val gmcHandler = handlers[EventHandler.Type.GUILD_MEMBERS_CHUNK] as GuildMembersChunkHandler
-            gmcHandler.addExpectedGuildMembers(snowflake((kson["d"] as KSONObject)["guild_id"]), -1)
+            gmcHandler.addExpectedGuildMembers(snowflake(json.obj("d")["guild_id"]), -1)
         }
 
         // TODO Startup Guild and Member Chunks
@@ -533,14 +535,14 @@ constructor(val api: APIImpl, private val sessionManager: SessionManager): WebSo
                            type == "GUILD_SYNC" ||
                            (!chunkingGuildMembers && type == "GUILD_CREATE"))) {
 
-            val data = kson["d"] as KSONObject
+            val data = json.obj("d")
             if(chunkingGuildMembers && type == "GUILD_DELETE" && "unavailable" in data && data["unavailable"] as Boolean) {
                 // We convert these to GUILD_CREATE
                 type = "GUILD_CREATE"
-                kson["t"] = "GUILD_CREATE"
+                json["t"] = "GUILD_CREATE"
             } else {
                 LOG.debug("Caching $type event to replay...")
-                eventsToReplay.offer(kson)
+                eventsToReplay.offer(json)
                 return
             }
         }
@@ -550,26 +552,26 @@ constructor(val api: APIImpl, private val sessionManager: SessionManager): WebSo
             return
         }
 
-        val data = kson["d"] as KSONObject
+        val data = json.obj("d")
 
-        LOG.trace("> $type: $kson")
+        LOG.trace("> $type: $json")
 
         try {
             val t = type.toUpperCase()
             when(t) {
                 "READY" -> {
                     api.status = API.Status.SETTING_UP
-                    sessionId = data["session_id"] as String // Grab session ID here
+                    sessionId = data.string("session_id") // Grab session ID here
                     systemsReady = true
                     ratelimitIdentify = false
 
                     LOG.debug("Got READY event (Session ID: $sessionId)")
 
-                    if(data.containsKey("_trace")) {
-                        updateTraces(data["_trace"] as KSONArray, kson["t"] as String, kson["op"] as Int)
+                    if("_trace" in data) {
+                        updateTraces(data.array("_trace"), json.string("t"), json.int("op"))
                     }
 
-                    handlers[EventHandler.Type.READY]!!.handle(kson)
+                    handlers[EventHandler.Type.READY]!!.handle(json)
                 }
 
                 "RESUMED" -> {
@@ -580,39 +582,39 @@ constructor(val api: APIImpl, private val sessionManager: SessionManager): WebSo
                         ready()
                     }
 
-                    if(data.containsKey("_trace")) {
-                        updateTraces(data["_trace"] as KSONArray, kson["t"] as String, kson["op"] as Int)
+                    if("_trace" in data) {
+                        updateTraces(data.array("_trace"), json.string("t"), json.int("op"))
                     }
                 }
 
                 else -> {
                     val eventHandlerType = EventHandler.Type.of(t)
                     if(eventHandlerType !== null && eventHandlerType in handlers) {
-                        handlers[eventHandlerType]!!.handle(kson)
+                        handlers[eventHandlerType]!!.handle(json)
                     } else {
-                        LOG.debug("Could not find handler for dispatch type: $eventHandlerType -> $kson")
+                        LOG.debug("Could not find handler for dispatch type: $eventHandlerType -> $json")
                     }
                 }
             }
-        } catch(e: KSONException) {
+        } catch(e: JSException) {
             LOG.warn("Encountered an internal websocket error parsing a JSON entity! Please " +
-                     "report this to the developers of this library:\n{}\n-> {}: {}", e.message, type, kson, e)
+                     "report this to the developers of this library:\n{}\n-> {}: {}", e.message, type, json, e)
         } catch(e: Throwable) {
             LOG.error("Encountered an internal websocket error! Please report this to the developers of this " +
-                      "library:\n-> {}: {}", type, kson, e)
+                      "library:\n-> {}: {}", type, json, e)
         }
     }
 
     private fun identify() {
-        val packet = kson {
+        val packet = jsonObject {
             this["op"] = OpCode.IDENTIFY
-            this["d"] = kson d@ {
+            this["d"] = jsonObject d@ {
                 this@d["v"] = Discord.KtInfo.GATEWAY_VERSION
                 this@d["large_threshold"] = 250
-                this@d["compressed"] = false // TODO Zlib? Idunno we'll see
-                this@d["presence"] = (api.presence as PresenceImpl).kson
+                this@d["compressed"] = true
+                this@d["presence"] = (api.presence as PresenceImpl).json
                 this@d["token"] = token
-                this@d["properties"] = kson properties@ {
+                this@d["properties"] = jsonObject properties@ {
                     this@properties["\$os"] = System.getProperty("os.name")
                     this@properties["\$browser"] = "Kotlincord"
                     this@properties["\$device"] = "Kotlincord"
@@ -630,11 +632,11 @@ constructor(val api: APIImpl, private val sessionManager: SessionManager): WebSo
 
     private fun resume() {
         LOG.debug("Sending RESUME...")
-        val packet = kson {
+        val packet = jsonObject {
             this["op"] = OpCode.RESUME
-            this["d"] = kson d@ {
+            this["d"] = jsonObject d@ {
                 this@d["session_id"] = requireNotNull(sessionId) {
-                    "Somehow, someway, the session ID provided when sending a resume request was null!"
+                    "Somehow, someway, the session ID provided when sending a resume request was null?"
                 }
                 this@d["token"] = token
                 this@d["seq"] = api.responses
@@ -666,7 +668,7 @@ constructor(val api: APIImpl, private val sessionManager: SessionManager): WebSo
             messagesSent++
             return true
         } else {
-            if(hasCreatedRatelimitError) {
+            if(!hasCreatedRatelimitError) {
                 LOG.warn("You just hit a WebSocket RateLimit! If you see this a lot, " +
                          "contact the developers of this library!")
                 hasCreatedRatelimitError = true
@@ -677,7 +679,7 @@ constructor(val api: APIImpl, private val sessionManager: SessionManager): WebSo
 
     private fun sendHeartbeat() {
         LOG.trace("Sending Heartbeat: ${api.responses}")
-        val hb = kson {
+        val hb = jsonObject {
             this["op"] = OpCode.HEARTBEAT
             this["d"] = api.responses
         }.toString()

@@ -13,14 +13,33 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-@file:Suppress("MemberVisibilityCanBePrivate")
+@file:Suppress("MemberVisibilityCanBePrivate", "unused")
 package me.kgustave.dkt.entities
+
+//
+// I'd like to write something as a future note for people looking
+// to develop kotlin-based APIs who read this source for ideas.
+//
+// I'd highly recommend you use @PublishedApi for internal builders and
+// provide builders as parameters for entities in the following style:
+//
+//                                               |
+// ----------------------------------------------+--------------------------------------------------------------
+// builderFunction ---+                          |
+//                    |                          | inline fun build(block: Entity.Builder.() -> Unit): Entity {
+//                    | <| apply to builder      |     val builder = Entity.Builder()
+//                    V                          |     builder.block()
+//       Builder() ---+-------+                  |     return Entity(builder)
+//                            |                  | }
+// BuildEntity(Builder) <-----+                  |
+//                                               |
 
 import me.kgustave.dkt.util.requireNotBlank
 import me.kgustave.dkt.util.requireNotLonger
-import me.kgustave.kson.KSONArray
-import me.kgustave.kson.KSONObject
-import me.kgustave.kson.kson
+import me.kgustave.json.JSObject
+import me.kgustave.json.emptyJSArray
+import me.kgustave.json.emptyJSObject
+import me.kgustave.json.jsonObject
 import java.awt.Color
 import java.time.*
 import java.time.format.DateTimeFormatter
@@ -29,7 +48,7 @@ import java.time.temporal.TemporalAccessor
 /**
  * @author Kaidan Gustave
  */
-class Embed(
+data class Embed internal constructor(
     val title: String?,
     val url: String?,
     val author: Embed.Author?,
@@ -110,7 +129,7 @@ class Embed(
         const val ZWSP = "\u200E"
 
         private val URL_REGEX = Regex("\\s*(https?|attachment)://.+\\..{2,}\\s*", RegexOption.IGNORE_CASE)
-        private val RGB_RANGE = 0..255
+        private val RGB_RANGE get() = 0..255
 
         private fun String.assureNotEmpty(): String = if(isBlank()) ZWSP else this
         private fun checkUrl(url: String?) {
@@ -121,7 +140,8 @@ class Embed(
         }
     }
 
-    constructor(builder: Embed.Builder): this(
+    @PublishedApi
+    internal constructor(builder: Embed.Builder): this(
         builder.title?.text,
         builder.title?.url,
         builder.author,
@@ -134,8 +154,17 @@ class Embed(
         builder.color
     )
 
-    val json: KSONObject by lazy { // Construct lazily so we don't have to reconstruct it for multiple calls
-        val embed = KSONObject()
+    fun isEmpty(): Boolean {
+        return fields.isEmpty() &&
+               author === null &&
+               title === null &&
+               description === null &&
+               thumbnail === null &&
+               image === null
+    }
+
+    internal val json: JSObject by lazy { // Construct lazily so we don't have to reconstruct it for multiple calls
+        val embed = emptyJSObject()
 
         title?.let {
             embed["title"] = title
@@ -143,7 +172,7 @@ class Embed(
         }
 
         author?.let {
-            embed["author"] = kson {
+            embed["author"] = jsonObject {
                 "name" to author.name
                 author.url?.let { "url" to author.url }
                 author.iconUrl?.let { "icon_url" to author.iconUrl }
@@ -155,15 +184,15 @@ class Embed(
         }
 
         image?.let {
-            embed["image"] = kson { "url" to image.url }
+            embed["image"] = jsonObject { "url" to image.url }
         }
 
         thumbnail?.let {
-            embed["thumbnail"] = kson { "url" to thumbnail.url }
+            embed["thumbnail"] = jsonObject { "url" to thumbnail.url }
         }
 
         video?.let {
-            embed["video"] = kson { "url" to video.url }
+            embed["video"] = jsonObject { "url" to video.url }
         }
 
         color?.let {
@@ -175,27 +204,27 @@ class Embed(
         }
 
         footer?.let {
-            embed["footer"] = kson {
+            embed["footer"] = jsonObject {
                 "text" to footer.text
                 footer.iconUrl?.let { "icon_url" to footer.iconUrl }
             }
         }
 
         provider?.let {
-            embed["provider"] = kson {
+            embed["provider"] = jsonObject {
                 "name" to provider.name
                 "url" to provider.url
             }
         }
 
         if(fields.isNotEmpty()) {
-            val fieldsArray = KSONArray()
+            val fieldsArray = emptyJSArray()
             fields.forEach { field ->
-                fieldsArray.put(kson {
-                    "name" to field.name
-                    "value" to field.value
+                fieldsArray += jsonObject(
+                    "name" to field.name,
+                    "value" to field.value,
                     "inline" to field.inline
-                })
+                )
             }
             embed["fields"] = fieldsArray
         }
@@ -203,26 +232,22 @@ class Embed(
         return@lazy embed
     }
 
-    fun isEmpty(): Boolean {
-        return fields.isEmpty() &&
-               author === null &&
-               title === null &&
-               description === null &&
-               thumbnail === null &&
-               image === null
-    }
-
     @MessageDsl
-    class Builder : MessageDslComponent<Embed.Builder>() {
+    class Builder @PublishedApi internal constructor(): MessageDslComponent<Embed.Builder>() {
         internal val fields = ArrayList<Embed.Field>()
         internal var title: Embed.Title? = null
         internal var author: Embed.Author? = null
         internal var image: Embed.Image? = null
         internal var thumbnail: Embed.Thumbnail? = null
         internal var footer: Embed.Footer? = null
-        internal var color: Color? = null
-        internal var timestamp: OffsetDateTime? = null
 
+        @MessageDsl
+        var color: Color? = null
+
+        @MessageDsl
+        var timestamp: OffsetDateTime? = null
+
+        @MessageDsl
         val length: Int get() {
             var l = contentBuilder.length
             l += fields.sumBy { it.value.length }
@@ -232,6 +257,7 @@ class Embed(
             return l
         }
 
+        @MessageDsl
         fun isEmpty(): Boolean {
             return contentBuilder.isBlank() &&
                    fields.isEmpty() &&
@@ -397,15 +423,21 @@ class Embed(
         operator fun String.invoke(link: String): String = "[$this]($link)"
 
         override fun check(csq: CharSequence) {
+            require(length + csq.length < MAX_TOTAL_LENGTH) {
+                "Embed total length cannot be greater than $MAX_TEXT_LENGTH characters"
+            }
             require(contentBuilder.length + csq.length < MAX_TEXT_LENGTH) {
                 "Embed description cannot be longer than $MAX_TEXT_LENGTH characters"
             }
         }
     }
 
-    data class Title(val text: String, val url: String? = null) {
+    data class Title internal constructor(
+        val text: String,
+        val url: String? = null
+    ) {
         @MessageDsl
-        class Builder(
+        class Builder @PublishedApi internal constructor(
             @MessageDsl var text: String? = null,
             @MessageDsl var url: String? = null
         ) {
@@ -421,13 +453,13 @@ class Embed(
         }
     }
 
-    data class Field(
+    data class Field internal constructor(
         val name: String,
         val value: String,
         val inline: Boolean
     ) {
         @MessageDsl
-        class Builder(
+        class Builder @PublishedApi internal constructor(
             @MessageDsl var name: String,
             @MessageDsl var inline: Boolean = true
         ): MessageDslComponent<Field.Builder>() {
@@ -447,7 +479,7 @@ class Embed(
         }
     }
 
-    data class Author(
+    data class Author internal constructor(
         val name: String,
         val url: String?,
         val iconUrl: String?,
@@ -455,7 +487,7 @@ class Embed(
         val proxyIconUrl: String? = null
     ) {
         @MessageDsl
-        class Builder(
+        class Builder @PublishedApi internal constructor(
             @MessageDsl var name: String,
             @MessageDsl var url: String? = null,
             @MessageDsl var imageUrl: String? = null
@@ -477,13 +509,13 @@ class Embed(
         }
     }
 
-    data class Footer(
+    data class Footer internal constructor(
         val text: String,
         val iconUrl: String? = null,
         val proxyIconUrl: String? = null
     ) {
         @MessageDsl
-        class Builder(
+        class Builder @PublishedApi internal constructor(
             @MessageDsl var text: String = ZWSP,
             @MessageDsl var iconUrl: String? = null
         ) {
@@ -505,23 +537,30 @@ class Embed(
     // if one ever changes, I created two identical classes....
     // -_-
 
-    data class Image(
+    data class Image internal constructor(
         val url: String,
         val proxyUrl: String? = null,
         val height: Int = 0,
         val width: Int = 0
     )
 
-    data class Thumbnail(
+    data class Thumbnail internal constructor(
         val url: String,
         val proxyUrl: String? = null,
         val height: Int = 0,
         val width: Int = 0
     )
 
-    data class Video(val url: String, val height: Int = 0, val width: Int = 0)
+    data class Video internal constructor(
+        val url: String,
+        val height: Int = 0,
+        val width: Int = 0
+    )
 
-    data class Provider(val name: String?, val url: String?)
+    data class Provider internal constructor(
+        val name: String?,
+        val url: String?
+    )
 
     enum class Type(type: String? = null) {
         IMAGE,
@@ -530,7 +569,7 @@ class Embed(
         RICH,
         UNKNOWN("");
 
-        val type: String = type ?: name.toLowerCase()
+        val type = type ?: name.toLowerCase()
 
         companion object {
             fun of(type: String): Embed.Type = values().firstOrNull { it.type == type } ?: UNKNOWN

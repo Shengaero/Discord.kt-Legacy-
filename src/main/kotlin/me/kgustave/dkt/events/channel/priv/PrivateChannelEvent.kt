@@ -13,31 +13,17 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package me.kgustave.dkt.entities.impl
+package me.kgustave.dkt.events.channel.priv
 
-import me.kgustave.dkt.API
-import me.kgustave.dkt.entities.*
-
-/**
- * @author Kaidan Gustave
- */
-class MemberPermissionOverrideImpl(
-    api: API,
-    channel: GuildChannel,
-    id: Long,
-    override val member: Member
-): AbstractPermissionOverrideImpl(api, channel, id), MemberPermissionOverride {
-    override val role: Role? = null
-}
+import me.kgustave.dkt.entities.Guild
+import me.kgustave.dkt.entities.PrivateChannel
+import me.kgustave.dkt.events.channel.ChannelEvent
 
 /**
  * @author Kaidan Gustave
  */
-class RolePermissionOverrideImpl(
-    api: API,
-    channel: GuildChannel,
-    id: Long,
-    override val role: Role
-): AbstractPermissionOverrideImpl(api, channel, id), RolePermissionOverride {
-    override val member: Member? = null
+interface PrivateChannelEvent : ChannelEvent {
+    override val channel: PrivateChannel
+    override val guild: Guild?
+        get() = null
 }

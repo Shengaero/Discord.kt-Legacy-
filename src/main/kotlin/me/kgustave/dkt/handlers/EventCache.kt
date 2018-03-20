@@ -16,6 +16,7 @@
 package me.kgustave.dkt.handlers
 
 import me.kgustave.dkt.util.createLogger
+import java.util.*
 
 /**
  * @author Kaidan Gustave
@@ -25,14 +26,14 @@ class EventCache {
         private val LOG = createLogger(EventCache::class)
     }
 
-    private val map = HashMap<EventCache.Type, HashMap<Long, ArrayList<() -> Unit>>>()
+    private val map = HashMap<EventCache.Type, MutableMap<Long, MutableList<() -> Unit>>>()
 
     val size: Int
         get() = map.values.sumBy { it.values.sumBy { it.size } }
 
     fun add(type: EventCache.Type, id: Long, function: () -> Unit) {
-        val cache = map[type] ?: HashMap<Long, ArrayList<() -> Unit>>().also { map[type] = it }
-        val functions = cache[id] ?: ArrayList<() -> Unit>().also { cache[id] = it }
+        val cache = map[type] ?: HashMap<Long, MutableList<() -> Unit>>().also { map[type] = it }
+        val functions = cache[id] ?: LinkedList<() -> Unit>().also { cache[id] = it }
         functions += function
     }
 

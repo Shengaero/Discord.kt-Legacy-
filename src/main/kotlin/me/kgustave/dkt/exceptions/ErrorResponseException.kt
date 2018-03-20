@@ -18,12 +18,15 @@ package me.kgustave.dkt.exceptions
 
 import me.kgustave.dkt.requests.ErrorResponse
 import me.kgustave.dkt.requests.RestResponse
-import me.kgustave.kson.KSONObject
+import me.kgustave.json.JSObject
 
 /**
  * @author Kaidan Gustave
  */
-class ErrorResponseException(val error: ErrorResponse, val response: RestResponse) : RuntimeException("${error.code} - ${error.meaning}") {
+class ErrorResponseException(
+    val error: ErrorResponse,
+    val response: RestResponse
+): RuntimeException("${error.code} - ${error.meaning}") {
     val code: Int
     val meaning: String
     val isServerError = error == ErrorResponse.SERVER_ERROR
@@ -36,14 +39,14 @@ class ErrorResponseException(val error: ErrorResponse, val response: RestRespons
             }
 
             response.obj != null -> {
-                val obj = response.obj as KSONObject
+                val obj = response.obj as JSObject
                 code = when {
-                    !obj.isNull("code") -> obj["code"] as Int
+                    !obj.isNull("code") -> obj.int("code")
                     else -> response.code
                 }
 
                 meaning = when {
-                    !obj.isNull("message") -> obj["message"] as String
+                    !obj.isNull("message") -> obj.string("message")
                     else -> response.toString()
                 }
             }

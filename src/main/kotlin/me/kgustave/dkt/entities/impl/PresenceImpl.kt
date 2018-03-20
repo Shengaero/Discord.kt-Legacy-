@@ -22,8 +22,8 @@ import me.kgustave.dkt.entities.Presence
 import me.kgustave.dkt.requests.OpCode
 import me.kgustave.dkt.util.currentTime
 import me.kgustave.dkt.util.delegate.updating
-import me.kgustave.kson.KSONObject
-import me.kgustave.kson.kson
+import me.kgustave.json.JSObject
+import me.kgustave.json.jsonObject
 
 class PresenceImpl(
     api: APIImpl,
@@ -39,17 +39,17 @@ class PresenceImpl(
     override var activity: Activity? by updating(activity) { if(!updateLocked) update() }
     override var afk: Boolean by updating(afk) { if(!updateLocked) update() }
 
-    val kson: KSONObject get() = kson {
-        this["afk"] = afk
-        this["status"] = status
-        this["game"] = activity?.run {
-            kson game@ {
-                this@game["name"] = this@run.name
-                this@game["type"] = this@run.type.ordinal
-                this@run.url?.let { this@game["url"] = it }
+    val json: JSObject get() = jsonObject {
+        "aft" to afk
+        "status" to status
+        "game" to activity?.let { activity ->
+            jsonObject game@ {
+                this@game["name"] = activity.name
+                this@game["type"] = activity.type.ordinal
+                activity.url?.let { this@game["url"] = it }
             }
         }
-        this["since"] = currentTime
+        "since" to currentTime
     }
 
     internal inline fun updateInBulk(block: Presence.() -> Unit) {
@@ -69,8 +69,8 @@ class PresenceImpl(
     }
 
     internal fun update() {
-        api.websocket.sendMessage(kson {
-            this["d"] = kson
+        api.websocket.sendMessage(jsonObject {
+            this["d"] = json
             this["op"] = OpCode.STATUS_UPDATE
         }.toString())
     }

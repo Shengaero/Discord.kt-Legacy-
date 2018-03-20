@@ -31,5 +31,4 @@ object OpCode {
     const val INVALID_SESSION = 9
     const val HELLO = 10
     const val HEARTBEAT_ACK = 11
-    const val GUILD_SYNC = 12
 }

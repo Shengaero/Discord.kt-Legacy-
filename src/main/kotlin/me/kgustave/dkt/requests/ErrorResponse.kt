@@ -13,10 +13,11 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+@file:Suppress("MemberVisibilityCanBePrivate")
 package me.kgustave.dkt.requests
 
 import me.kgustave.dkt.util.niceName
-import me.kgustave.kson.KSONObject
+import me.kgustave.json.JSObject
 
 /**
  * @author Kaidan Gustave
@@ -79,7 +80,7 @@ enum class ErrorResponse(val code: Int, meaning: String? = null) {
 
     companion object {
         fun ofCode(code: Int): ErrorResponse = values().firstOrNull { it.code == code } ?: SERVER_ERROR
-        fun from(kson: KSONObject?): ErrorResponse {
+        fun from(kson: JSObject?): ErrorResponse {
             val code = kson?.opt<Int>("code") ?: return SERVER_ERROR
 
             return ofCode(code)

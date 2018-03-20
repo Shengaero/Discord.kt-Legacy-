@@ -54,8 +54,7 @@ class GuildImpl(
     private lateinit var _explicitContentFilter: Guild.ExplicitContentFilter
 
     // Used purely for debugging if somehow an owner doesn't get set for a guild
-    internal val ownerIsInitialized: Boolean
-        get() = ::_owner.isInitialized
+    internal val ownerIsInitialized: Boolean get() = ::_owner.isInitialized
 
     override var name: String
         internal set(value) { _name = value }
@@ -162,26 +161,23 @@ class GuildImpl(
     override val emoteCache = SnowflakeCacheImpl(GuildEmote::name)
     override val memberCache = MemberCacheImpl()
 
-    override val roles: List<Role>
-        get() = roleCache.toList()
-    override val emotes: List<Emote>
-        get() = emoteCache.toList()
-    override val members: List<Member>
-        get() = memberCache.toList()
-    override val categories: List<Category>
-        get() = categoryCache.toList()
-    override val textChannels: List<TextChannel>
-        get() = textChannelCache.toList()
-    override val voiceChannels: List<VoiceChannel>
-        get() = voiceChannelCache.toList()
+    override val roles: List<Role>                 get() = roleCache.toList()
+    override val emotes: List<GuildEmote>          get() = emoteCache.toList()
+    override val members: List<Member>             get() = memberCache.toList()
+    override val categories: List<Category>        get() = categoryCache.toList()
+    override val textChannels: List<TextChannel>   get() = textChannelCache.toList()
+    override val voiceChannels: List<VoiceChannel> get() = voiceChannelCache.toList()
+
+    internal val categoryMap get() = categoryCache.entityMap
+    internal val textChannelMap get() = textChannelCache.entityMap
+    internal val voiceChannelMap get() = voiceChannelCache.entityMap
+    internal val roleMap get() = roleCache.entityMap
+    internal val emoteMap get() = emoteCache.entityMap
+    internal val memberMap get() = memberCache.entityMap
 
     // Used for direct setup, usually after joining a guild
     constructor(id: Long, api: APIImpl, block: GuildImpl.() -> Unit): this(id, api, false) {
         this.block()
-    }
-
-    override fun getChannelsByName(name: String, ignoreCase: Boolean): List<GuildChannel> {
-        TODO("not implemented")
     }
 
     override fun getCategoriesByName(name: String, ignoreCase: Boolean): List<Category> {
@@ -232,10 +228,6 @@ class GuildImpl(
 
     override fun getMembersByNickname(name: String, ignoreCase: Boolean): List<Member> {
         return memberCache.getByNickname(name, ignoreCase)
-    }
-
-    override fun getMembersByAnyName(name: String, ignoreCase: Boolean): List<Member> {
-        TODO("not implemented")
     }
 
     override fun getRoleById(id: Long): Role? {

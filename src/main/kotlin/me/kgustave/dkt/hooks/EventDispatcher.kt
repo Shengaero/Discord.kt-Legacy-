@@ -15,6 +15,7 @@
  */
 package me.kgustave.dkt.hooks
 
+import me.kgustave.dkt.entities.impl.APIImpl
 import me.kgustave.dkt.events.Event
 
 /**
@@ -28,25 +29,28 @@ interface EventDispatcher {
     operator fun minusAssign(listener: Any) = removeListener(listener)
     operator fun plusAssign(listener: Any) = addListener(listener)
 
-    companion object {
-        val default: EventDispatcher
-            get() = object : EventDispatcher {
-                private val listeners: MutableList<EventListener> = ArrayList()
+    companion object DefaultEventDispatcher : EventDispatcher {
+        private val listeners: MutableList<EventListener> = ArrayList()
 
-                override fun onEvent(event: Event) {
-                    listeners.forEach { it.onEvent(event) }
-                }
-
-                override fun removeListener(listener: Any) {
-                    if(listener is EventListener)
-                        listeners -= listener
-                }
-
-                override fun addListener(listener: Any) {
-                    listeners += requireNotNull(listener as? EventListener) {
-                        "${listener::class} must implement EventListener to be used as with this EventDispatcher!"
-                    }
+        override fun onEvent(event: Event) {
+            listeners.forEach {
+                try {
+                    it.onEvent(event)
+                } catch(t: Throwable) {
+                    APIImpl.LOG.warn("One of the EventListeners caught an exception:", t)
                 }
             }
+        }
+
+        override fun removeListener(listener: Any) {
+            if(listener is EventListener)
+                listeners -= listener
+        }
+
+        override fun addListener(listener: Any) {
+            listeners += requireNotNull(listener as? EventListener) {
+                "${listener::class} must implement EventListener to be used as with this EventDispatcher!"
+            }
+        }
     }
 }

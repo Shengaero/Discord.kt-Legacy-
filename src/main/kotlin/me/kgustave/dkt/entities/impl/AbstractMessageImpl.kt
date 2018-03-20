@@ -15,25 +15,19 @@
  */
 package me.kgustave.dkt.entities.impl
 
-import me.kgustave.dkt.entities.Channel
-import me.kgustave.dkt.entities.Emote
-import me.kgustave.dkt.entities.Message
-import me.kgustave.dkt.entities.User
+import me.kgustave.dkt.entities.*
 
 /**
  * @author Kaidan Gustave
  */
-abstract class AbstractMessageImpl : Message {
-    override val renderedContent: String by lazy {
-        content // TODO Rendered Content
-    }
-    override val mentionedChannels: List<Channel> by lazy {
-        emptyList<Channel>() // TODO Mentioned Channels
-    }
-    override val mentionedEmotes: List<Emote> by lazy {
-        emptyList<Emote>() // TODO Mentioned Emotes
-    }
-    override val mentionedUsers: List<User> by lazy {
-        emptyList<User>() // TODO Mentioned Users
+abstract class AbstractMessageImpl(override val content: String): Message {
+    override fun mentions(mentionable: Mentionable): Boolean {
+        return when(mentionable) {
+            is User -> mentionable in mentionedUsers
+            is TextChannel -> mentionable in mentionedChannels
+            is Emote -> mentionable in mentionedEmotes
+
+            else -> false
+        }
     }
 }

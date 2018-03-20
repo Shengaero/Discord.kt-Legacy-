@@ -32,6 +32,6 @@ class NonGuildEmoteImpl(
     // We don't check if the NonGuild is managed because it wouldn't
     // make much of a difference since it's un-cached
 
-    override val guild: Guild? = null
-    override val roles: List<Role>? = null
+    override val guild: Guild? get() = null
+    override val roles: List<Role>? get() = null
 }

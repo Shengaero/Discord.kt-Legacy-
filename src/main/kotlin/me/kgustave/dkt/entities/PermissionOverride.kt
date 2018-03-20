@@ -28,17 +28,13 @@ interface PermissionOverride {
     val channel: GuildChannel
     val api: API
 
-    val allowed: List<Permission>
-        get() = Permission.fromRaw(allowedRaw)
-    val denied: List<Permission>
-        get() = Permission.fromRaw(deniedRaw)
-    val effective: List<Permission>
-        get() = Permission.fromRaw(effectiveRaw)
-
     val allowedRaw: Long
     val deniedRaw: Long
-    val effectiveRaw: Long
-        get() = (allowedRaw or deniedRaw).inv()
+    val effectiveRaw: Long get() = (allowedRaw or deniedRaw).inv()
+
+    val allowed: List<Permission> get() = Permission.fromRaw(allowedRaw)
+    val denied: List<Permission> get() = Permission.fromRaw(deniedRaw)
+    val effective: List<Permission> get() = Permission.fromRaw(effectiveRaw)
 }
 
 interface MemberPermissionOverride : PermissionOverride {

@@ -29,22 +29,25 @@ internal class CategoryImpl(
     internal val internalTextChannels = HashMap<Long, TextChannel>()
     internal val internalVoiceChannels = HashMap<Long, VoiceChannel>()
 
+    override val category: Category? get() = null
+
     override val position: Int get() {
         guild.categories.forEachIndexed { i, cat ->
-            if(cat == this)
+            if(cat == this) {
                 return i
+            }
         }
         // If we somehow reach here, we are not in the guild.
         throw IllegalStateException("Unable to determine category position in Guild (ID: ${guild.id})")
     }
 
-    override val category: Category?
-        get() = null
+    override val textChannels: List<TextChannel> get() {
+        return unmodifiableList(*internalTextChannels.values.toTypedArray())
+    }
 
-    override val textChannels: List<TextChannel>
-        get() = unmodifiableList(*internalTextChannels.values.toTypedArray())
-    override val voiceChannels: List<VoiceChannel>
-        get() = unmodifiableList(*internalVoiceChannels.values.toTypedArray())
+    override val voiceChannels: List<VoiceChannel> get() {
+        return unmodifiableList(*internalVoiceChannels.values.toTypedArray())
+    }
 
     override fun compareTo(other: Category): Int {
         if(this == other)

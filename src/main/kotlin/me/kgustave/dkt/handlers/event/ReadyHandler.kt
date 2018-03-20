@@ -19,9 +19,11 @@ import me.kgustave.dkt.entities.impl.APIImpl
 import me.kgustave.dkt.requests.OpCode
 import me.kgustave.dkt.util.createLogger
 import me.kgustave.dkt.util.snowflake
-import me.kgustave.kson.KSONArray
-import me.kgustave.kson.KSONObject
-import me.kgustave.kson.kson
+import me.kgustave.json.JSArray
+import me.kgustave.json.JSObject
+import me.kgustave.json.emptyJSArray
+import me.kgustave.json.jsonObject
+import java.util.LinkedList
 
 /**
  * @author Kaidan Gustave
@@ -36,16 +38,23 @@ class ReadyHandler(override val api: APIImpl): EventHandler(Type.READY) {
     private val acknowledgedGuilds = HashSet<Long>()
     private val chunkingGuilds = HashSet<Long>()
 
-    private lateinit var readyEvent: KSONObject
+    private lateinit var readyEvent: JSObject
 
-    override fun handle(event: KSONObject, responseNumber: Long, rawKSON: KSONObject) {
-        this.readyEvent = event
+    override fun handle(event: JSObject, responseNumber: Long, rawKSON: JSObject) {
+        readyEvent = event
 
-        val rawSelf = event["user"] as KSONObject
-        val rawGuilds = (event["guilds"] as KSONArray).mapNotNull { it as? KSONObject }
         val entityBuilder = api.entityBuilder
 
+        val rawSelf = event.obj("user")
+
         entityBuilder.createSelf(rawSelf)
+
+        val rawGuilds = event.array("guilds").mapNotNull { it as? JSObject }
+
+        // We have no guilds, and thus we have to complete manually
+        if(rawGuilds.isEmpty()) {
+            return completeGuildLoading()
+        }
 
         // First we cache all guild IDs that are incomplete
         rawGuilds.forEach { incompleteGuilds += snowflake(it["id"]) }
@@ -57,11 +66,6 @@ class ReadyHandler(override val api: APIImpl): EventHandler(Type.READY) {
             } else {
                 entityBuilder.createGuild(it)
             }
-        }
-
-        // We have no guilds, and thus we have to complete manually
-        if(rawGuilds.isEmpty()) {
-            completeGuildLoading()
         }
     }
 
@@ -87,16 +91,16 @@ class ReadyHandler(override val api: APIImpl): EventHandler(Type.READY) {
         }
     }
 
-    private fun completeGuildLoading(event: KSONObject = readyEvent) {
+    private fun completeGuildLoading(event: JSObject = readyEvent) {
         api.websocket.chunkingGuildMembers = false
         val entityBuilder = api.entityBuilder
 
         // Private Channel Setup
-        val rawPcs = event["private_channels"] as KSONArray
+        val rawPcs = event.array("private_channels")
         if(rawPcs.isNotEmpty()) {
-            val filtered = ArrayList<KSONObject>()
+            val filtered = LinkedList<JSObject>()
             for(value in rawPcs) {
-                val pc = value as? KSONObject
+                val pc = value as? JSObject
                 if(pc === null) {
                     LOG.warn("PrivateChannel array of READY data was not a JSON Object")
                     continue
@@ -127,44 +131,37 @@ class ReadyHandler(override val api: APIImpl): EventHandler(Type.READY) {
     private fun attemptDoChunking() {
         if(acknowledgedGuilds.size == incompleteGuilds.size) {
             api.websocket.chunkingGuildMembers = true
-            doChunking()
+            if(chunkingGuilds.isEmpty())
+                return
+
+            var guildIds = emptyJSArray()
+            chunkingGuilds.forEach { id ->
+                guildIds.add(id)
+
+                // Only 50 guilds per request
+                if(guildIds.size == 50) {
+                    queueChunkRequest(guildIds)
+                    guildIds = emptyJSArray()
+                }
+            }
+
+            // If we have any remaining guilds
+            if(guildIds.isNotEmpty()) {
+                queueChunkRequest(guildIds)
+            }
+
+            chunkingGuilds.clear()
         }
     }
 
-    private fun doChunking() {
-        if(chunkingGuilds.isEmpty())
-            return
-
-        var guildIds = KSONArray()
-        chunkingGuilds.forEach { id ->
-            guildIds.put(id)
-
-            // Only 50 guilds per request
-            if(guildIds.size == 50) {
-                api.websocket.queueChunkRequest(kson {
-                    "op" to OpCode.REQUEST_GUILD_MEMBERS
-                    "d" to kson {
-                        "guild_id" to guildIds
-                        "query" to ""
-                        "limit" to 0
-                    }
-                })
-                guildIds = KSONArray()
+    private fun queueChunkRequest(guildIds: JSArray) {
+        api.websocket.queueChunkRequest(jsonObject {
+            "op" to OpCode.REQUEST_GUILD_MEMBERS
+            "d" to jsonObject {
+                "guild_id" to guildIds
+                "query" to ""
+                "limit" to 0
             }
-        }
-
-        // If we have any remaining guilds
-        if(guildIds.isNotEmpty()) {
-            api.websocket.queueChunkRequest(kson {
-                "op" to OpCode.REQUEST_GUILD_MEMBERS
-                "d" to kson {
-                    "guild_id" to guildIds
-                    "query" to ""
-                    "limit" to 0
-                }
-            })
-        }
-
-        chunkingGuilds.clear()
+        })
     }
 }

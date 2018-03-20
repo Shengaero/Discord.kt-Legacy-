@@ -18,8 +18,8 @@ package me.kgustave.dkt.handlers.event
 import me.kgustave.dkt.entities.impl.APIImpl
 import me.kgustave.dkt.util.createLogger
 import me.kgustave.dkt.util.snowflake
-import me.kgustave.kson.KSONArray
-import me.kgustave.kson.KSONObject
+import me.kgustave.json.JSArray
+import me.kgustave.json.JSObject
 import java.util.*
 
 /**
@@ -31,15 +31,15 @@ class GuildMembersChunkHandler(override val api: APIImpl): EventHandler(Type.GUI
     }
 
     private val expectedGuildMemberMap = HashMap<Long, Int>()
-    private val memberChunkCache = HashMap<Long, MutableList<KSONArray>>()
+    private val memberChunkCache = HashMap<Long, MutableList<JSArray>>()
 
-    override fun handle(event: KSONObject, responseNumber: Long, rawKSON: KSONObject) {
+    override fun handle(event: JSObject, responseNumber: Long, rawKSON: JSObject) {
         val guildId = snowflake(event["guild_id"])
 
         val expected = expectedGuildMemberMap[guildId]!!
         val memberChunks = memberChunkCache[guildId]!!
 
-        val members = event["members"] as KSONArray
+        val members = event.array("members")
 
         LOG.debug("Chunking ${members.size} members for Guild ID: $guildId")
         memberChunks.add(members)

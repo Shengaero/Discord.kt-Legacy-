@@ -29,8 +29,12 @@ import me.kgustave.dkt.util.toStringArray
  * @since  1.0
  * @author Kaidan Gustave
  */
-sealed class Route(val method: Method, val endpoint: String, vararg val majorParameters: String,
-                   val rateLimit: RateLimit? = null) {
+sealed class Route(
+    val method: Method,
+    val endpoint: String,
+    vararg val majorParameters: String,
+    val rateLimit: RateLimit? = null
+) {
     companion object {
         // The base URL for all requests
         internal const val BASE_URL = "${Discord.API_URL}/v${Discord.KtInfo.REST_VERSION}"
@@ -157,7 +161,7 @@ sealed class Route(val method: Method, val endpoint: String, vararg val majorPar
         override fun toString(): String = "$method - $formattedEndpoint"
     }
 
-    class RateLimit(val maxUses: Int, val resetTime: Long)
+    data class RateLimit(val maxUses: Int, val resetTime: Long)
 
     // ROUTES //
 

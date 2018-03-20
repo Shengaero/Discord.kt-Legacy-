@@ -15,7 +15,7 @@
  */
 package me.kgustave.dkt.util.queue
 
-import me.kgustave.kson.KSONObject
+import me.kgustave.json.JSObject
 import java.util.*
 
 /**
@@ -25,13 +25,13 @@ import java.util.*
  * @since  1.0.0
  * @author Kaidan Gustave
  */
-class RawEventQueue : AbstractQueue<KSONObject>() {
-    private val list: MutableList<KSONObject> = LinkedList()
+class RawEventQueue : AbstractQueue<JSObject>() {
+    private val list: MutableList<JSObject> = LinkedList()
     override val size: Int
         get() = list.size
 
-    override fun iterator(): MutableIterator<KSONObject> = list.iterator()
-    override fun poll(): KSONObject? = if(list.isEmpty()) null else list.removeAt(0)
-    override fun peek(): KSONObject? = if(list.isEmpty()) null else list[0]
-    override fun offer(e: KSONObject): Boolean = list.add(e)
+    override fun iterator(): MutableIterator<JSObject> = list.iterator()
+    override fun poll(): JSObject? = if(list.isEmpty()) null else list.removeAt(0)
+    override fun peek(): JSObject? = if(list.isEmpty()) null else list[0]
+    override fun offer(e: JSObject): Boolean = list.add(e)
 }

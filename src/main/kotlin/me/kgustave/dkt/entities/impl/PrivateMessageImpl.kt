@@ -24,34 +24,49 @@ import me.kgustave.dkt.requests.promises.MessagePromise
  * @author Kaidan Gustave
  */
 class PrivateMessageImpl(
-    override val id: Long,
-    override val api: APIImpl,
-    override val type: Message.Type,
-    override val author: User,
-    override val channel: PrivateChannel,
-    override val content: String,
-    override val embeds: List<Embed>,
-    override val attachments: List<Message.Attachment>
-): PrivateMessage, AbstractMessageImpl() {
+    id: Long,
+    api: APIImpl,
+    type: Message.Type,
+    author: User,
+    content: String,
+    embeds: List<Embed>,
+    channel: PrivateChannel,
+    attachments: List<Message.Attachment>,
+    mentionedUserIds: Set<Long>
+): PrivateMessage,
+    AbstractReceivedMessageImpl<PrivateChannel>(
+        id, api, type, author, embeds,
+        channel, attachments, mentionedUserIds,
+        content
+    ) {
 
     // Private Messages cannot be from Guilds
-    override val member: Member?
-        get() = null
-    override val isWebhook: Boolean
-        get() = false
-    override val channelType: Channel.Type
-        get() = Channel.Type.PRIVATE
+    override val member: Member? get() = null
+    override val isWebhook: Boolean get() = false
+    override val channelType: Channel.Type get() = Channel.Type.PRIVATE
 
     override fun edit(text: String): MessagePromise {
+        check(author == api.self) {
+            "Cannot edit message from a user that is not the same as the currently logged in user."
+        }
+
         return MessagePromise(channel, api, Route.EditMessage.format(channel.id, id), text)
     }
 
     override fun edit(embed: Embed): MessagePromise {
-        TODO("not implemented") //To change body of created functions use File | Settings | File Templates.
+        check(author == api.self) {
+            "Cannot edit message from a user that is not the same as the currently logged in user."
+        }
+
+        return MessagePromise(channel, api, Route.EditMessage.format(channel.id, id)).also { it.embed = embed }
     }
 
     override fun edit(message: Message): MessagePromise {
-        TODO("not implemented") //To change body of created functions use File | Settings | File Templates.
+        check(author == api.self) {
+            "Cannot edit message from a user that is not the same as the currently logged in user."
+        }
+
+        return MessagePromise(api, Route.EditMessage.format(channel.id, id), message)
     }
 
     override fun delete(): RestPromise<Message> {

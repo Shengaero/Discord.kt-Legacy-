@@ -16,9 +16,8 @@
 package me.kgustave.dkt.events.channel.text
 
 import me.kgustave.dkt.API
-import me.kgustave.dkt.entities.Guild
 import me.kgustave.dkt.entities.TextChannel
-import me.kgustave.dkt.events.channel.ChannelEvent
+import me.kgustave.dkt.events.channel.GuildChannelCreateEvent
 
 /**
  * @author Kaidan Gustave
@@ -27,7 +26,4 @@ class TextChannelCreateEvent(
     override val api: API,
     override val responseNumber: Long,
     override val channel: TextChannel
-): ChannelEvent {
-    override val guild: Guild
-        get() = channel.guild
-}
+): GuildChannelCreateEvent, TextChannelEvent

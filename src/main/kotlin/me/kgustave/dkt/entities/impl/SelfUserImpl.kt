@@ -31,19 +31,26 @@ class SelfUserImpl(
     override var name: String,
     override var discriminator: Int
 ): SelfUser {
-    // Kotlincord does not and will never support client
+    // Discord.kt does not and will never support client
     // accounts so this should always be true.
     override val isBot = true
     override var avatarId: String? = null
 
-    override val avatarUrl: String
-        get() = avatarId?.let { UserImpl.AVY_URL.format(id, it) } ?: defaultAvatarUrl
-    override val defaultAvatarId: String
-        get() = with(UserImpl) { DEFAULT_AVATAR_HASHES[discriminator % DEFAULT_AVATAR_HASHES.size] }
-    override val defaultAvatarUrl: String
-        get() = UserImpl.DEFAULT_AVY_URL.format(defaultAvatarId)
-    override val privateChannel: PrivateChannel
-        get() = unsupported { "Cannot get a PrivateChannel with self!" }
+    override val avatarUrl: String get() {
+        return avatarId?.let { UserImpl.AVY_URL.format(id, it) } ?: defaultAvatarUrl
+    }
+
+    override val defaultAvatarId: String get() {
+        return with(UserImpl) { DEFAULT_AVATAR_HASHES[discriminator % DEFAULT_AVATAR_HASHES.size] }
+    }
+
+    override val defaultAvatarUrl: String get() {
+        return UserImpl.DEFAULT_AVY_URL.format(defaultAvatarId)
+    }
+
+    override val privateChannel: PrivateChannel get() {
+        unsupported { "Cannot get a PrivateChannel with self!" }
+    }
 
     override fun openPrivateChannel(): RestPromise<PrivateChannel> {
         unsupported { "Cannot open a PrivateChannel with self!" }

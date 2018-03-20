@@ -15,8 +15,6 @@
  */
 package me.kgustave.dkt.entities
 
-import me.kgustave.dkt.annotations.EntityTrait
-
 /**
  * A trait interface applied to entities that would hold one or
  * more [TextChannels][TextChannel] and/or [VoiceChannels][VoiceChannel].
@@ -26,7 +24,6 @@ import me.kgustave.dkt.annotations.EntityTrait
  * @since  1.0.0
  * @author Kaidan Gustave
  */
-@EntityTrait
 interface ChannelHolder {
     val textChannels: List<TextChannel>
     val voiceChannels: List<VoiceChannel>

@@ -54,6 +54,10 @@ interface API {
     val categories: List<Category>
     val privateChannels: List<PrivateChannel>
 
+    fun getUserById(id: Long): User?
+
+    fun getTextChannelById(id: Long): TextChannel?
+
     fun findUserById(id: Long): RestPromise<User>
 
     fun async(block: suspend CoroutineScope.() -> Unit)

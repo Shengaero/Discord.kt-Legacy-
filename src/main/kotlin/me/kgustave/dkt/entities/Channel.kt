@@ -32,10 +32,6 @@ interface Channel : Snowflake {
      */
     val guild: Guild?
 
-    /** `true` if this Channel is a [GuildChannel], `false` otherwise. */
-    val isGuildChannel: Boolean
-        get() = guild == null
-
     /**
      * Constants defining the specific type of [Channel].
      *
@@ -62,28 +58,8 @@ interface Channel : Snowflake {
 
         UNKNOWN(-1);
         companion object {
-            fun typeOf(number: Int): Type? = values().firstOrNull { number == it.number }
+            fun typeOf(number: Int): Type = values().firstOrNull { number == it.number } ?: UNKNOWN
         }
     }
 }
 
-/**
- * @since  1.0.0
- * @author Kaidan Gustave
- */
-interface GuildChannel : Channel {
-    val name: String
-    val position: Int
-    val rawPosition: Int
-    val category: Category?
-
-    val permissionOverrides: List<PermissionOverride>
-    val memberPermissionOverrides: List<MemberPermissionOverride>
-    val rolePermissionOverrides: List<RolePermissionOverride>
-
-    /** The [Guild] this Channel is from, never-null. */
-    override val guild: Guild
-
-    fun getPermissionOverride(member: Member): MemberPermissionOverride?
-    fun getPermissionOverride(role: Role): RolePermissionOverride?
-}

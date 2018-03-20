@@ -18,7 +18,6 @@ package me.kgustave.dkt.handlers
 import kotlinx.coroutines.experimental.*
 import me.kgustave.dkt.entities.impl.APIImpl
 import me.kgustave.dkt.requests.DiscordWebSocket
-import java.util.concurrent.BlockingQueue
 import java.util.concurrent.LinkedBlockingQueue
 import java.util.concurrent.TimeUnit
 
@@ -43,9 +42,9 @@ interface SessionManager {
 
     class Default : SessionManager {
         private val coroutineContext = newSingleThreadContext("SessionManager")
+        private val queue = LinkedBlockingQueue<DiscordWebSocket>()
 
         @Volatile private var lock = false
-        @Volatile private var queue: BlockingQueue<DiscordWebSocket> = LinkedBlockingQueue()
 
         override fun add(websocket: DiscordWebSocket) {
             if(!queue.offer(websocket))

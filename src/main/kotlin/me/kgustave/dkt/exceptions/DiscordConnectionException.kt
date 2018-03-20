@@ -18,7 +18,9 @@ package me.kgustave.dkt.exceptions
 /**
  * @author Kaidan Gustave
  */
-class DiscordConnectionException(override val message: String? = null,
-                                 override val cause: Throwable? = null): RuntimeException(message, cause) {
+class DiscordConnectionException(
+    message: String? = null,
+    cause: Throwable? = null
+): RuntimeException(message, cause) {
     constructor(cause: Throwable?): this(message = null, cause = cause)
 }

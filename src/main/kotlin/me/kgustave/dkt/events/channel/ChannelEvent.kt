@@ -20,6 +20,8 @@ import me.kgustave.dkt.entities.Guild
 import me.kgustave.dkt.events.Event
 
 /**
+ * An event defined by a particular [Channel].
+ *
  * @author Kaidan Gustave
  */
 interface ChannelEvent : Event {

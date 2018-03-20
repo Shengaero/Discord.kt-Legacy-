@@ -16,12 +16,10 @@
 package me.kgustave.dkt.entities
 
 import me.kgustave.dkt.Permission
-import me.kgustave.dkt.annotations.EntityTrait
 
 /**
  * @author Kaidan Gustave
  */
-@EntityTrait
 interface PermissionHolder {
     val guild: Guild
     val permissions: List<Permission>

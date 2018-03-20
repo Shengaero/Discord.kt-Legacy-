@@ -24,9 +24,9 @@ import me.kgustave.dkt.handlers.event.ReadyHandler
 import me.kgustave.dkt.requests.OpCode
 import me.kgustave.dkt.util.createLogger
 import me.kgustave.dkt.util.snowflake
-import me.kgustave.kson.KSONArray
-import me.kgustave.kson.KSONObject
-import me.kgustave.kson.kson
+import me.kgustave.json.JSArray
+import me.kgustave.json.JSObject
+import me.kgustave.json.jsonObject
 import java.awt.Color
 import java.time.OffsetDateTime
 
@@ -43,10 +43,10 @@ internal class EntityBuilder(private val api: APIImpl) {
         private val LOG = createLogger(EntityBuilder::class)
     }
 
-    private val rawGuilds = HashMap<Long, KSONObject>()
+    private val rawGuilds = HashMap<Long, JSObject>()
     private val guildCallbacks = HashMap<Long, (Guild) -> Unit>()
 
-    fun createSelf(self: KSONObject): SelfUser {
+    fun createSelf(self: JSObject): SelfUser {
         val id = snowflake(self["id"])
         val discriminator = self["discriminator"].toString().toInt()
         val name = self["username"] as String
@@ -56,11 +56,11 @@ internal class EntityBuilder(private val api: APIImpl) {
 
         LOG.debug("Created SelfUser, attaching to API")
         api.internalSelf = selfImpl
-        api.internalUserCache.entityMap[id] = selfImpl
+        api.userMap[id] = selfImpl
         return selfImpl
     }
 
-    fun createUser(user: KSONObject, shouldCache: Boolean = true): User {
+    fun createUser(user: JSObject, shouldCache: Boolean = true): User {
 
         /*
         "user": {
@@ -76,7 +76,7 @@ internal class EntityBuilder(private val api: APIImpl) {
 
         // If we already have the user
         // This will also return our self user if it's referring to us.
-        getUser(id)?.let { return it }
+        (api.userMap[id] as? UserImpl)?.let { return it }
 
         // Just in case something slips through, we do not want to have a
         // UserImpl created (and possibly cached) for our currently logged
@@ -86,8 +86,8 @@ internal class EntityBuilder(private val api: APIImpl) {
             return api.self
         }
 
-        val username = user["username"] as String
-        val discriminator = (user["discriminator"] as String).toInt()
+        val username = user.string("username")
+        val discriminator = user.string("discriminator").toInt()
         val isBot = user.opt("bot") ?: false // If it is not included it is false
         val avatarId = user.opt<String>("avatar")
 
@@ -100,73 +100,74 @@ internal class EntityBuilder(private val api: APIImpl) {
 
         // Cache the user?
         if(shouldCache) {
-            api.internalUserCache.entityMap[id] = userImpl
+            api.userMap[id] = userImpl
         }
 
         return userImpl
     }
 
-    fun createWebhookUser(webhook: KSONObject): Webhook {
+    fun createWebhookUser(webhook: JSObject): Webhook {
         TODO("implement webhook users")
     }
 
-    fun createPermissionOverridesForChannel(channel: KSONObject) {
+    fun createPermissionOverridesForChannel(channel: JSObject) {
         val id = snowflake(channel["id"])
-        val type = Channel.Type.typeOf(channel["type"] as Int)
+        val typeInt = channel.int("type")
+        val type = Channel.Type.typeOf(typeInt)
         val channelImpl: AbstractGuildChannelImpl? = when(type) {
-            Channel.Type.TEXT -> api.internalTextChannelCache.entityMap[id] as? TextChannelImpl
-            Channel.Type.VOICE -> api.internalVoiceChannelCache.entityMap[id] as? VoiceChannelImpl
-            Channel.Type.CATEGORY -> api.internalCategoryCache.entityMap[id] as? CategoryImpl
-            else -> return LOG.warn("")
+            Channel.Type.TEXT -> api.textChannelMap[id] as? TextChannelImpl
+            Channel.Type.VOICE -> api.voiceChannelMap[id] as? VoiceChannelImpl
+            Channel.Type.CATEGORY -> api.categoryMap[id] as? CategoryImpl
+            else -> return LOG.warn("Got request to create permission override for channel type: $typeInt\n$channel")
         }
 
         channelImpl?.let {
-            val overrides = channel["permission_overwrites"] as KSONArray
+            val overrides = channel.array("permission_overwrites")
             createPermissionOverrides(overrides, channelImpl)
         }
     }
 
-    fun createTextChannel(channel: KSONObject, guildId: Long, loaded: Boolean = true): TextChannel {
+    fun createTextChannel(channel: JSObject, guildId: Long, loaded: Boolean = true): TextChannel {
         val id = snowflake(channel["id"])
-        val textChannelImpl = api.internalTextChannelCache.entityMap[id] as? TextChannelImpl ?: let {
-            val guildImpl = requireNotNull(api.internalGuildCache.entityMap[guildId] as? GuildImpl) {
+        val textChannelImpl = api.textChannelMap[id] as? TextChannelImpl ?: let {
+            val guildImpl = requireNotNull(api.guildMap[guildId] as? GuildImpl) {
                 "Tried to create a TextChannel for a guild that was not cached"
             }
-            TextChannelImpl(api, id, guildImpl).also { chan ->
-                guildImpl.textChannelCache.entityMap[id] = chan
-                api.internalTextChannelCache.entityMap[id] = chan
+            TextChannelImpl(id, api, guildImpl).also { chan ->
+                guildImpl.textChannelMap[id] = chan
+                api.textChannelMap[id] = chan
             }
         }
 
         if(!channel.isNull("permission_overwrites") && loaded) {
-            val overrides = channel["permission_overwrites"] as KSONArray
+            val overrides = channel.array("permission_overwrites")
             createPermissionOverrides(overrides, textChannelImpl)
         }
 
         with(textChannelImpl) {
-            name = channel["name"] as String
+            name = channel.string("name")
             topic = channel.opt("topic")
             parentId = channel.opt<String>("parent_id")?.let { snowflake(it) } ?: 0L
-            rawPosition = channel["position"] as Int
+            rawPosition = channel.int("position")
         }
 
         return textChannelImpl
     }
 
-    fun createVoiceChannel(channel: KSONObject, guildId: Long, loaded: Boolean = true): VoiceChannel {
+    fun createVoiceChannel(channel: JSObject, guildId: Long, loaded: Boolean = true): VoiceChannel {
         val id = snowflake(channel["id"])
-        val voiceChannelImpl = api.internalVoiceChannelCache.entityMap[id] as? VoiceChannelImpl ?: let {
-            val guildImpl = requireNotNull(api.internalGuildCache.entityMap[guildId] as? GuildImpl) {
+        val voiceChannelImpl = api.voiceChannelMap[id] as? VoiceChannelImpl ?: let {
+            val guildImpl = requireNotNull(api.guildMap[guildId] as? GuildImpl) {
                 "Tried to create a TextChannel for a guild that was not cached"
             }
             VoiceChannelImpl(api, id, guildImpl).also { chan ->
-                guildImpl.voiceChannelCache.entityMap[id] = chan
-                api.internalVoiceChannelCache.entityMap[id] = chan
+                guildImpl.voiceChannelMap[id] = chan
+                api.voiceChannelMap[id] = chan
             }
         }
 
         if(!channel.isNull("permission_overwrites") && loaded) {
-            val overrides = channel["permission_overwrites"] as KSONArray
+            val overrides = channel.array("permission_overwrites")
             createPermissionOverrides(overrides, voiceChannelImpl)
         }
 
@@ -180,21 +181,21 @@ internal class EntityBuilder(private val api: APIImpl) {
         return voiceChannelImpl
     }
 
-    fun createCategory(category: KSONObject, guildId: Long, loaded: Boolean = true): Category {
+    fun createCategory(category: JSObject, guildId: Long, loaded: Boolean = true): Category {
         val id = snowflake(category["id"])
 
-        val categoryImpl = api.internalCategoryCache.entityMap[id] as? CategoryImpl ?: let {
-            val guildImpl = requireNotNull(api.internalGuildCache.entityMap[guildId] as? GuildImpl) {
+        val categoryImpl = api.categoryMap[id] as? CategoryImpl ?: let {
+            val guildImpl = requireNotNull(api.guildMap[guildId] as? GuildImpl) {
                 "Tried to create a Category for a guild that was not cached"
             }
             CategoryImpl(api, id, guildImpl).also { cat ->
-                guildImpl.categoryCache.entityMap[id] = cat
-                api.internalCategoryCache.entityMap[id] = cat
+                guildImpl.categoryMap[id] = cat
+                api.categoryMap[id] = cat
             }
         }
 
         if(!category.isNull("permission_overwrites") && loaded) {
-            val overrides = category["permission_overwrites"] as KSONArray
+            val overrides = category.array("permission_overwrites")
             createPermissionOverrides(overrides, categoryImpl)
         }
 
@@ -206,9 +207,9 @@ internal class EntityBuilder(private val api: APIImpl) {
         return categoryImpl
     }
 
-    fun createPermissionOverrides(overrides: KSONArray, guildChannelImpl: AbstractGuildChannelImpl) {
+    fun createPermissionOverrides(overrides: JSArray, guildChannelImpl: AbstractGuildChannelImpl) {
         overrides.forEach {
-            val override = it as? KSONObject
+            val override = it as? JSObject
             if(override === null) {
                 LOG.warn("Encountered a value in overrides array that was not a JSON object: $it")
                 return@forEach
@@ -224,11 +225,11 @@ internal class EntityBuilder(private val api: APIImpl) {
         }
     }
 
-    fun createPermissionOverride(override: KSONObject, guildChannelImpl: AbstractGuildChannelImpl): Boolean {
+    fun createPermissionOverride(override: JSObject, guildChannelImpl: AbstractGuildChannelImpl): Boolean {
         val id = snowflake(override["id"])
         val rawAllow = snowflake(override["allow"])
         val rawDeny = snowflake(override["deny"])
-        val type = override["type"] as String
+        val type = override.string("type")
 
         when(type) {
             "member" -> {
@@ -257,7 +258,7 @@ internal class EntityBuilder(private val api: APIImpl) {
         return true
     }
 
-    fun createVoiceState(voiceState: KSONObject, guildImpl: GuildImpl) {
+    fun createVoiceState(voiceState: JSObject, guildImpl: GuildImpl) {
         val voiceChannelImpl = guildImpl.getVoiceChannelById(snowflake(voiceState["channel_id"])) as? VoiceChannelImpl ?:
                                return LOG.error("Got a voice state for a voice channel that was not cached")
         val memberImpl = guildImpl.getMemberById(snowflake(voiceState["user_id"])) as? MemberImpl ?:
@@ -265,7 +266,7 @@ internal class EntityBuilder(private val api: APIImpl) {
 
         with(memberImpl.voiceState as GuildVoiceStateImpl) {
             channel = voiceChannelImpl
-            sessionId = voiceState["session_id"] as String
+            sessionId = voiceState.string("session_id")
             mute = voiceState["mute"] as Boolean
             deaf = voiceState["deaf"] as Boolean
             selfMute = voiceState["self_mute"] as Boolean
@@ -273,40 +274,40 @@ internal class EntityBuilder(private val api: APIImpl) {
         }
     }
 
-    fun createPrivateChannel(channel: KSONObject): PrivateChannel {
+    fun createPrivateChannel(channel: JSObject): PrivateChannel {
         // This is also checked in every EventHandler that might call this
         // method but just for consistency's sake, we check this anyways
         require("recipients" !in channel) { "Detected a PrivateChannel JSON that matched a Group " }
 
-        val recipient = channel["recipient"] as KSONObject
+        val recipient = channel.obj("recipient")
         val userId = snowflake(recipient["id"])
 
         require(userId != api.self.id) { "Attempted to create a PrivateChannel where the recipient was SelfUser!" }
 
-        val userImpl = (getUser(userId) ?: createUser(recipient, shouldCache = false)) as UserImpl
+        val userImpl = (api.userMap[userId] as? UserImpl ?: createUser(recipient, shouldCache = false)) as UserImpl
 
         return createPrivateChannel(channel, userImpl)
     }
 
-    fun createPrivateChannel(channel: KSONObject, userImpl: UserImpl): PrivateChannel {
+    fun createPrivateChannel(channel: JSObject, userImpl: UserImpl): PrivateChannel {
         val id = snowflake(channel["id"])
-        return PrivateChannelImpl(api, id, userImpl).also {
-            api.internalPrivateChannelCache.entityMap[id] = it
+        return PrivateChannelImpl(id, api, userImpl).also {
+            api.privateChannelMap[id] = it
         }
     }
 
-    fun createMember(member: KSONObject, guildImpl: GuildImpl) {
-        val userKson = member["user"] as KSONObject
+    fun createMember(member: JSObject, guildImpl: GuildImpl) {
+        val userKson = member.obj("user")
         val user = createUser(userKson)
         val memberImpl = MemberImpl(api, guildImpl, user)
 
         // Set nickname
         memberImpl.nickname = member.opt("nickname")
 
-        val roles = member["roles"] as KSONArray
+        val roles = member.array("roles")
         roles.forEach {
             val roleId = snowflake(it!!)
-            val role = guildImpl.roleCache.entityMap[roleId]
+            val role = guildImpl.roleMap[roleId]
 
             if(role !== null) {
                 memberImpl.internalRoles += role
@@ -317,13 +318,13 @@ internal class EntityBuilder(private val api: APIImpl) {
             }
         }
 
-        guildImpl.memberCache.entityMap[memberImpl.user.id] = memberImpl
+        guildImpl.memberMap[memberImpl.user.id] = memberImpl
     }
 
-    fun createGuild(guild: KSONObject, callback: ((Guild) -> Unit)? = null) {
+    fun createGuild(guild: JSObject, callback: ((Guild) -> Unit)? = null) {
         val guildId = snowflake(guild["id"]) // This should never fail
 
-        val guildMap = api.internalGuildCache.entityMap
+        val guildMap = api.guildMap
 
         // We are either dealing with a previously unavailable
         // Guild, or we are dealing with a brand new Guild.
@@ -349,26 +350,26 @@ internal class EntityBuilder(private val api: APIImpl) {
         with(guildImpl) {
             unavailable = isUnavailable // This should always be true
 
-            name = guild["name"] as String
+            name = guild.string("name")
             iconId = guild.opt("icon")
             splashId = guild.opt("splash")
 
-            mfaLevel = Guild.MFALevel.typeOf(guild["mfa_level"] as Int)
-            defaultNotificationLevel = Guild.NotificationLevel.typeOf(guild["default_message_notifications"] as Int)
-            explicitContentFilter = Guild.ExplicitContentFilter.typeOf(guild["explicit_content_filter"] as Int)
-            verificationLevel = Guild.VerificationLevel.typeOf(guild["verification_level"] as Int)
-            features = guild.opt<KSONArray>("features")?.mapTo(HashSet()) { it.toString() } ?: HashSet()
+            mfaLevel = Guild.MFALevel.typeOf(guild.int("mfa_level"))
+            defaultNotificationLevel = Guild.NotificationLevel.typeOf(guild.int("default_message_notifications"))
+            explicitContentFilter = Guild.ExplicitContentFilter.typeOf(guild.int("explicit_content_filter"))
+            verificationLevel = Guild.VerificationLevel.typeOf(guild.int("verification_level"))
+            features = guild.opt<JSArray>("features")?.mapTo(HashSet()) { it.toString() } ?: HashSet()
         }
 
         // Setup roles
-        for(rawRole in guild["roles"] as KSONArray) {
+        for(rawRole in guild.array("roles")) {
             // We need to wait for members to even be set up first
-            createRole(rawRole as KSONObject, guildImpl)
+            createRole(rawRole as JSObject, guildImpl)
         }
 
-        guild.opt<KSONArray>("emojis")?.let { emojis ->
+        guild.opt<JSArray>("emojis")?.let { emojis ->
             for(rawEmoji in emojis) {
-                val ksonEmoji = rawEmoji as KSONObject
+                val ksonEmoji = rawEmoji as JSObject
 
                 // These are necessary and since emotes can (apparently) be kinda
                 // flakey, we check if the two required parameters even exist.
@@ -384,21 +385,21 @@ internal class EntityBuilder(private val api: APIImpl) {
             }
         }
 
-        val members = guild.opt<KSONArray>("members")
+        val members = guild.opt<JSArray>("members")
 
         members?.forEach { member ->
             // Note: We do this after "roles" so that we
             // can sync up this user's roles with this call.
-            createMember(member as KSONObject, guildImpl)
+            createMember(member as JSObject, guildImpl)
         }
 
         guildImpl.getMemberById(snowflake(guild["owner_id"]))?.let {
             guildImpl.owner = it
         }
 
-        guild.opt<KSONArray>("channels")?.let { channels ->
+        guild.opt<JSArray>("channels")?.let { channels ->
             for(channel in channels) {
-                val type = Channel.Type.typeOf((channel as KSONObject)["type"] as Int)
+                val type = Channel.Type.typeOf((channel as JSObject).int("type"))
                 when(type) {
                     Channel.Type.TEXT -> createTextChannel(channel, guildId, false)
                     Channel.Type.VOICE -> createVoiceChannel(channel, guildId, false)
@@ -410,12 +411,12 @@ internal class EntityBuilder(private val api: APIImpl) {
 
         // Setup System Channel
         guild.opt<String>("system_channel_id")?.let {
-            guildImpl.systemChannel = guildImpl.textChannelCache[snowflake(it)]
+            guildImpl.systemChannel = guildImpl.textChannelMap[snowflake(it)]
         }
 
         // Setup AFK Channel
         guild.opt<String>("afk_channel_id")?.let {
-            guildImpl.afkChannel = guildImpl.voiceChannelCache[snowflake(it)]
+            guildImpl.afkChannel = guildImpl.voiceChannelMap[snowflake(it)]
         }
 
         val handlers = api.websocket.handlers
@@ -430,9 +431,9 @@ internal class EntityBuilder(private val api: APIImpl) {
 
             // We are past ready, just add the request and it will happen when it does
             if(api.websocket.ready) {
-                api.websocket.queueChunkRequest(kson {
+                api.websocket.queueChunkRequest(jsonObject {
                     "op" to OpCode.REQUEST_GUILD_MEMBERS
-                    "d" to kson {
+                    "d" to jsonObject {
                         "guild_id" to guildId
                         "query" to ""
                         "limit" to 0
@@ -449,27 +450,27 @@ internal class EntityBuilder(private val api: APIImpl) {
         }
 
         // Setup permission overrides for channels
-        (guild["channels"] as KSONArray).forEach { createPermissionOverridesForChannel(it as KSONObject) }
-        (guild["voice_states"] as KSONArray).forEach { createVoiceState(it as KSONObject, guildImpl) }
+        (guild.array("channels")).forEach { createPermissionOverridesForChannel(it as JSObject) }
+        (guild.array("voice_states")).forEach { createVoiceState(it as JSObject, guildImpl) }
 
         api.guildQueue.unregister(guildId)
         callback?.let { callback(guildImpl) }
     }
 
-    fun handleGuildMemberChunks(guildId: Long, memberChunks: List<KSONArray>) {
+    fun handleGuildMemberChunks(guildId: Long, memberChunks: List<JSArray>) {
         val guild = requireNotNull(rawGuilds[guildId]) {
             "Attempted to handle guild member chunks for a null guild (ID: $guildId)"
         }
         val callback = requireNotNull(guildCallbacks[guildId]) {
             "Attempted to handle guild member chunks for a guild with a null callback (ID: $guildId)"
         }
-        val guildImpl = requireNotNull(api.internalGuildCache.entityMap[guildId] as? GuildImpl) {
+        val guildImpl = requireNotNull(api.guildMap[guildId] as? GuildImpl) {
             "Attempted to handle guild member chunks for a guild with a null GuildImpl (ID: $guildId)"
         }
 
         memberChunks.forEach { memberChunk ->
             memberChunk.forEach { member ->
-                createMember(member as KSONObject, guildImpl)
+                createMember(member as JSObject, guildImpl)
             }
         }
 
@@ -485,43 +486,43 @@ internal class EntityBuilder(private val api: APIImpl) {
         }
 
         // Setup permission overrides for channels
-        (guild["channels"] as KSONArray).forEach { createPermissionOverridesForChannel(it as KSONObject) }
-        (guild["voice_states"] as KSONArray).forEach { createVoiceState(it as KSONObject, guildImpl) }
+        (guild.array("channels")).forEach { createPermissionOverridesForChannel(it as JSObject) }
+        (guild.array("voice_states")).forEach { createVoiceState(it as JSObject, guildImpl) }
 
         callback(guildImpl)
         api.guildQueue.unregister(guildId)
     }
 
-    fun createRole(role: KSONObject, guildImpl: GuildImpl) {
+    fun createRole(role: JSObject, guildImpl: GuildImpl) {
         val roleImpl = RoleImpl(
             id = snowflake(role["id"]),
             api = api,
             guild = guildImpl,
             color = role.opt<Int>("color")?.let { Color(it) },
-            name = role["name"] as String,
+            name = role.string("name"),
             isMentionable = role.opt<Boolean>("mentionable") == true,
-            rawPosition = role["position"] as Int,
+            rawPosition = role.int("position"),
             rawPermissions = role["permissions"].toString().toLong()
         )
 
-        guildImpl.roleCache.entityMap[roleImpl.id] = roleImpl
+        guildImpl.roleMap[roleImpl.id] = roleImpl
 
         if(roleImpl.id == guildImpl.id) {
             guildImpl.everyoneRole = roleImpl
         }
     }
 
-    fun createGuildEmote(emote: KSONObject, guildImpl: GuildImpl) {
+    fun createGuildEmote(emote: JSObject, guildImpl: GuildImpl) {
         val id = snowflake(emote["id"])
         val emoteImpl = GuildEmoteImpl(
             guildImpl, api, id,
-            name = emote["name"] as String,
+            name = emote.string("name"),
             isAnimated = emote.opt("animated") ?: false,
             isManaged = emote.opt("managed") ?: false
         )
 
-        val rolesMap = guildImpl.roleCache.entityMap
-        emote.opt<KSONArray>("roles")?.forEach {
+        val rolesMap = guildImpl.roleMap
+        emote.opt<JSArray>("roles")?.forEach {
             val roleId = snowflake(it!!)
             val role = rolesMap[roleId] ?:
                 return@forEach LOG.warn("Could not map role (ID: $it) to emote (ID: $id) because " +
@@ -531,24 +532,24 @@ internal class EntityBuilder(private val api: APIImpl) {
         }
     }
 
-    fun createMessage(message: KSONObject, channel: MessageChannel): Message {
+    fun createMessage(message: JSObject, channel: MessageChannel): Message {
         val messageId = snowflake(message["id"])
         val content = message.opt<String>("contentBuilder")
 
-        val author = message["author"] as KSONObject
+        val author = message.obj("author")
         val authorId = snowflake(author["id"])
         val isWebhook = message.opt<Boolean>("is_webhook")
 
-        val embeds = message.opt<KSONArray>("embeds")?.mapNotNull {
-            val embed = it as? KSONObject ?: let {
+        val embeds = message.opt<JSArray>("embeds")?.mapNotNull {
+            val embed = it as? JSObject ?: let {
                 LOG.warn("Found a value in embeds array that was not a JSON object!")
                 return@mapNotNull null
             }
             createEmbed(embed)
         } ?: emptyList()
 
-        val attachments = message.opt<KSONArray>("attachments")?.mapNotNull {
-            (it as? KSONObject)?.let { createMessageAttachment(it) }
+        val attachments = message.opt<JSArray>("attachments")?.mapNotNull {
+            (it as? JSObject)?.let { createMessageAttachment(it) }
         } ?: emptyList()
 
         val userAuthor: User = when(channel) {
@@ -556,14 +557,21 @@ internal class EntityBuilder(private val api: APIImpl) {
             is TextChannel -> {
                 val guild = channel.guild
                 val member = guild.getMemberById(authorId)
-                member?.user ?: if(isWebhook == true) createWebhookUser(author)
-                else throw IllegalStateException("Got a message from a un-cached user (User ID: $authorId)")
+                member?.user ?: when(isWebhook) {
+                    true -> createWebhookUser(author)
+                    else -> throw IllegalStateException("Got a message from a un-cached user (User ID: $authorId)")
+                }
             }
             else -> throw IllegalArgumentException("Invalid channel. Cannot handle channel type: ${channel.type}")
         }
 
         val messageTypeInt = message["type"] as Int
         val messageType = Message.Type.typeOf(messageTypeInt)
+
+        val mentionedUserIds = message.opt<JSArray>("mentions")?.mapNotNullTo(HashSet()) {
+            if(it !is JSObject) return@mapNotNullTo null
+            it.long("id")
+        } ?: emptySet<Long>()
 
         require(messageType != Message.Type.UNKNOWN) { "Invalid message. Cannot handle message type: $messageTypeInt" }
 
@@ -572,74 +580,95 @@ internal class EntityBuilder(private val api: APIImpl) {
             if(channel is PrivateChannel) {
                 return PrivateMessageImpl(
                     id = messageId,
-                    type = messageType,
                     api = api,
-                    channel =  channel,
+                    type = messageType,
                     author = userAuthor,
                     content = content ?: "",
                     embeds = embeds,
-                    attachments = attachments
+                    channel =  channel,
+                    attachments = attachments,
+                    mentionedUserIds = mentionedUserIds
+                )
+            } else if(channel is TextChannel) {
+                val mentionedRoleIds = message.opt<JSArray>("mention_roles")?.mapNotNullTo(HashSet()) {
+                    it as? Long
+                } ?: emptySet<Long>()
+                return TextMessageImpl(
+                    id = messageId,
+                    api = api,
+                    type = messageType,
+                    author = userAuthor,
+                    content = content ?: "",
+                    embeds = embeds,
+                    channel = channel,
+                    attachments = attachments,
+                    mentionedUserIds = mentionedUserIds,
+                    mentionedRoleIds = mentionedRoleIds,
+                    isWebhook = isWebhook == true,
+                    member = checkNotNull(channel.guild.getMember(userAuthor)) {
+                        // TODO Error
+                    }
                 )
             } else {
-                TODO("Unimplemented Text Messages")
+                throw IllegalArgumentException("MessageChannel provided was of an unknown type: ${channel::class}")
             }
         } else {
             TODO("Unimplemented System Messages")
         }
     }
 
-    fun createEmbed(embed: KSONObject): Embed {
+    fun createEmbed(embed: JSObject): Embed {
         val title = embed.opt<String>("title")
-        val type = Embed.Type.of(embed["type"] as String)
+        val type = Embed.Type.of(embed.string("type"))
         val description = embed.opt<String>("description")
         val url = embed.opt<String>("url")
         val timestamp = embed.opt<String>("timestamp")?.let { OffsetDateTime.parse(it) }
         val color = embed.opt<Int>("color")?.let { Color(it) }
 
-        val footer = embed.opt<KSONObject>("footer")?.let { footer ->
+        val footer = embed.opt<JSObject>("footer")?.let { footer ->
             Embed.Footer(
-                text = footer["text"] as String,
+                text = footer.string("text"),
                 iconUrl = footer.opt("icon_url"),
                 proxyIconUrl = footer.opt("proxy_icon_url")
             )
         }
 
-        val image = embed.opt<KSONObject>("image")?.let { image ->
+        val image = embed.opt<JSObject>("image")?.let { image ->
             Embed.Image(
-                url = image["url"] as String,
+                url = image.string("url"),
                 proxyUrl = image.opt("proxy_url"),
-                height = image.opt("height", -1),
-                width = image.opt("width", -1)
+                height = image.opt("height") ?: -1,
+                width = image.opt("width") ?: -1
             )
         }
 
-        val thumbnail = embed.opt<KSONObject>("thumbnail")?.let { thumbnail ->
+        val thumbnail = embed.opt<JSObject>("thumbnail")?.let { thumbnail ->
             Embed.Thumbnail(
-                url = thumbnail["url"] as String,
+                url = thumbnail.string("url"),
                 proxyUrl = thumbnail.opt("proxy_url"),
-                height = thumbnail.opt("height", -1),
-                width = thumbnail.opt("width", -1)
+                height = thumbnail.opt("height") ?: -1,
+                width = thumbnail.opt("width") ?: -1
             )
         }
 
-        val video = embed.opt<KSONObject>("video")?.let { video ->
+        val video = embed.opt<JSObject>("video")?.let { video ->
             Embed.Video(
-                url = video["url"] as String,
-                height = video.opt("height", -1),
-                width = video.opt("width", -1)
+                url = video.string("url"),
+                height = video.opt("height") ?: -1,
+                width = video.opt("width") ?: -1
             )
         }
 
-        val provider = embed.opt<KSONObject>("provider")?.let { provider ->
+        val provider = embed.opt<JSObject>("provider")?.let { provider ->
             Embed.Provider(
                 name = provider.opt("name"),
                 url = provider.opt("url")
             )
         }
 
-        val author = embed.opt<KSONObject>("author")?.let { author ->
+        val author = embed.opt<JSObject>("author")?.let { author ->
             Embed.Author(
-                name = author["name"] as String,
+                name = author.string("name"),
                 url = author.opt("url"),
                 proxyUrl = author.opt("proxy_url"),
                 iconUrl = author.opt("icon_url"),
@@ -647,15 +676,15 @@ internal class EntityBuilder(private val api: APIImpl) {
             )
         }
 
-        val fields = embed.opt<KSONArray>("fields")?.mapNotNull {
-            val jsonField = it as? KSONObject ?: let {
+        val fields = embed.opt<JSArray>("fields")?.mapNotNull {
+            val jsonField = it as? JSObject ?: let {
                 LOG.warn("Found a value in embed fields array that was not a JSON array!")
                 return@mapNotNull null
             }
 
             Embed.Field(
-                name = jsonField["name"] as String,
-                value = jsonField["value"] as String,
+                name = jsonField.string("name"),
+                value = jsonField.string("value"),
                 inline = jsonField["inline"] as Boolean
             )
         } ?: emptyList()
@@ -665,18 +694,16 @@ internal class EntityBuilder(private val api: APIImpl) {
             footer, color, type, video, provider)
     }
 
-    fun createMessageAttachment(attachment: KSONObject): Message.Attachment {
+    fun createMessageAttachment(attachment: JSObject): Message.Attachment {
         return Message.Attachment(
             api = api,
             id = snowflake(attachment["id"]), // Note this isn't a snowflake but we can parse it safely in the same way
             url = attachment.opt("url"),
             proxyUrl = attachment.opt("proxy_url"),
-            filename = attachment["filename"] as String,
-            size = attachment["size"] as Int,
+            filename = attachment.string("filename"),
+            size = attachment.int("size"),
             height = attachment.opt("height") ?: -1,
             width = attachment.opt("width") ?: -1
         )
     }
-
-    private fun getUser(id: Long): UserImpl? = api.internalUserCache.entityMap[id] as? UserImpl
 }

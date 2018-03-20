@@ -16,19 +16,19 @@
 package me.kgustave.dkt.entities.impl
 
 import me.kgustave.dkt.entities.*
+import me.kgustave.dkt.requests.Route
 import me.kgustave.dkt.requests.promises.MessagePromise
 
 /**
  * @author Kaidan Gustave
  */
 class TextChannelImpl(
-    api: APIImpl,
     id: Long,
+    api: APIImpl,
     guild: GuildImpl
 ): AbstractGuildChannelImpl(api, id, guild, Channel.Type.TEXT), TextChannel {
     override var topic: String? = null
-    override val asMention: String
-        get() = "<#$id>"
+    override val asMention: String get() = "<#$id>"
     override val position: Int get() {
         guild.textChannels.forEachIndexed { i, tc ->
             if(tc == this)
@@ -39,15 +39,17 @@ class TextChannelImpl(
     }
 
     override fun send(text: String): MessagePromise {
-        TODO("not implemented")
+        return MessagePromise(this, api, Route.CreateMessage.format(id), text)
     }
 
     override fun send(embed: Embed): MessagePromise {
-        TODO("not implemented")
+        return MessagePromise(this, api, Route.CreateMessage.format(id)).also {
+            it.embed = embed
+        }
     }
 
     override fun send(message: Message): MessagePromise {
-        TODO("not implemented")
+        return MessagePromise(this, api, Route.CreateMessage.format(id), message.content.takeIf { it.isNotBlank() })
     }
 
     override fun compareTo(other: TextChannel): Int {

@@ -20,8 +20,8 @@ import me.kgustave.dkt.Permission
 import me.kgustave.dkt.entities.*
 import me.kgustave.dkt.entities.impl.APIImpl
 import me.kgustave.dkt.requests.*
-import me.kgustave.kson.KSONObject
-import me.kgustave.kson.kson
+import me.kgustave.json.JSObject
+import me.kgustave.json.jsonObject
 import okhttp3.MediaType
 import okhttp3.MultipartBody
 import okhttp3.RequestBody
@@ -50,18 +50,19 @@ class MessagePromise(
 
     var nonce: String? = null
     var embed: Embed? = null
-    var tts: Boolean = false
+    var tts = false
 
     constructor(api: APIImpl, route: Route.FormattedRoute, message: Message): this(message.channel, api, route) {
         content.append(message.content)
-        embed = message.embeds[0]
+        if(message.embeds.isNotEmpty()) {
+            this.embed = message.embeds[0]
+        }
     }
 
     fun isEmpty(): Boolean {
-        return Message.contentEmpty(content) && (embed == null || embed!!.isEmpty() || !checkForEmbedPermission())
+        return Message.contentEmpty(content) && (embed?.isEmpty() != false || !checkForEmbedPermission())
     }
 
-    @MessageDsl
     inline fun embed(builder: Embed.Builder.() -> Unit): MessagePromise {
         this.embed = me.kgustave.dkt.entities.embed(builder)
         return this
@@ -87,14 +88,14 @@ class MessagePromise(
         return RequestBody.create(Requester.MEDIA_TYPE_JSON, getPayloadJSON().toString())
     }
 
-    private fun getPayloadJSON(): KSONObject = kson {
-        "embed" to getEmbedAsKSON()
+    private fun getPayloadJSON(): JSObject = jsonObject {
+        "embed" to getEmbedAsJSON()
         "contentBuilder" to content.takeUnless { Message.contentEmpty(it) }?.toString()
         "nonce" to nonce
         "tts" to tts
     }
 
-    private fun getEmbedAsKSON(): KSONObject? = embed?.json
+    private fun getEmbedAsJSON(): JSObject? = embed?.json
 
     private fun checkForEmbedPermission(): Boolean {
         if(channel !is TextChannel)
@@ -129,7 +130,7 @@ class MessagePromise(
 
     override suspend fun handle(response: RestResponse, request: RestRequest<Message>) {
         when {
-            response.isOk -> request.succeed(api.entityBuilder.createMessage(response.obj as KSONObject, channel))
+            response.isOk -> request.succeed(api.entityBuilder.createMessage(response.obj as JSObject, channel))
             else -> request.error(response)
         }
     }

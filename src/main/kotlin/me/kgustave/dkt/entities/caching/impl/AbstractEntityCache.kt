@@ -45,7 +45,7 @@ abstract class AbstractEntityCache<T>(private val nameFunction: ((T) -> String?)
     }
 
     override fun getByName(name: String, ignoreCase: Boolean): List<T> {
-        doNotSupport(nameFunction == null) { "Getting entities from this cache by name is unsupported." }
+        doNotSupport(nameFunction === null) { "Getting entities from this cache by name is unsupported." }
 
         if(entityMap.isEmpty())
             return emptyList()

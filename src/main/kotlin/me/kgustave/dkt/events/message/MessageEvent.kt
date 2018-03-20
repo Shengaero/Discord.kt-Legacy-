@@ -26,7 +26,9 @@ import me.kgustave.dkt.events.Event
 interface MessageEvent : Event {
     val messageId: Long
     val channel: MessageChannel
+
     val channelType: Channel.Type
         get() = channel.type
+
     fun isFrom(channelType: Channel.Type): Boolean = this.channelType == channelType
 }

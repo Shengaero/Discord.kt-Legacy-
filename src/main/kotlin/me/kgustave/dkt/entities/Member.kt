@@ -21,7 +21,7 @@ import me.kgustave.dkt.API
  * @since  1.0.0
  * @author Kaidan Gustave
  */
-interface Member : PermissionHolder, Comparable<Member> {
+interface Member : PermissionHolder, Mentionable, Comparable<Member> {
     val api: API
     val user: User
     val name: String

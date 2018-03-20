@@ -23,13 +23,12 @@ import me.kgustave.dkt.requests.promises.MessagePromise
  * @author Kaidan Gustave
  */
 class PrivateChannelImpl(
-    override val api: APIImpl,
     override val id: Long,
+    override val api: APIImpl,
     override val recipient: UserImpl
 ): PrivateChannel {
-    override val guild: Guild? = null
-    override val type: Channel.Type
-        get() = Channel.Type.PRIVATE
+    override val guild: Guild? get() = null
+    override val type: Channel.Type get() = Channel.Type.PRIVATE
 
     init {
         recipient.internalPrivateChannel = this
@@ -46,7 +45,8 @@ class PrivateChannelImpl(
     }
 
     override fun send(message: Message): MessagePromise {
-        TODO("not implemented")
+        return MessagePromise(this, api, Route.CreateMessage.format(id),
+            message.content.takeIf { it.isNotBlank() })
     }
 
     override fun toString(): String = Snowflake.toString("PrivateChannel", this)
